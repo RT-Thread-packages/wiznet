@@ -1,6 +1,6 @@
 //*****************************************************************************
 //
-//! \file dns.h
+//! \file wizchip_dns.h
 //! \brief DNS APIs Header file.
 //! \details Send DNS query & Receive DNS reponse. 
 //! \version 1.1.0
@@ -48,8 +48,8 @@
 //
 //*****************************************************************************
 
-#ifndef	_DNS_H_
-#define	_DNS_H_
+#ifndef	_WIZCHIP_DNS_H_
+#define	_WIZCHIP_DNS_H_
 
 #include <stdint.h>
 /*
@@ -98,4 +98,4 @@ int8_t DNS_run(uint8_t * dns_ip, uint8_t * name, uint8_t * ip_from_dns);
  */
 void DNS_time_handler(void);
 
-#endif	/* _DNS_H_ */
+#endif	/* _WIZCHIP_DNS_H_ */

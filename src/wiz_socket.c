@@ -21,7 +21,7 @@
 #include <wiz_socket.h>
 
 #include <W5500/w5500.h>
-#include <DNS/dns.h>
+#include <DNS/wizchip_dns.h>
 #include <wizchip_socket.h>
 
 #define DBG_ENABLE

@@ -1,6 +1,6 @@
 //*****************************************************************************
 //
-//! \file dns.c
+//! \file wizchip_dns.c
 //! \brief DNS APIs Implement file.
 //! \details Send DNS query & Receive DNS reponse.  \n
 //!          It depends on stdlib.h & string.h in ansi-c library
@@ -53,7 +53,7 @@
 #include <stdlib.h>
 #include <wizchip_socket.h>
 
-#include "DNS/dns.h"
+#include "DNS/wizchip_dns.h"
 
 #ifdef _DNS_DEBUG_
    #include <stdio.h>
