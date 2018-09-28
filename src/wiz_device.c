@@ -128,7 +128,7 @@ static int wiz_spi_init(const char *spi_dev_name)
 
     if (rt_device_open((rt_device_t) wiz_device, RT_DEVICE_OFLAG_RDWR) != RT_EOK)
     {
-        rt_kprintf("open WIZnet SPI device %s error\n", spi_dev_name);
+        LOG_E("open WIZnet SPI device %s error.", spi_dev_name);
         return -RT_ERROR;
     }
 
@@ -158,6 +158,7 @@ int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_p
     result = wiz_spi_init(spi_dev_name);
     if (result != RT_EOK)
     {
+        LOG_E("WIZnet SPI device initialize failed.");
         return result;
     }
 
