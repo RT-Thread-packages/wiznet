@@ -66,7 +66,7 @@ WIZnet: WIZnet TCP/IP chips SAL framework implement
 
 - **SPI device name**：配置使用 SPI 的设备名称
 
-- **reset pin number**：配置设备连接的重启引脚号
+- **reset pin number**：配置设备连接的复位引脚号
 
 - **irq pin number**：配置设备连接的中断引脚号
 
@@ -76,7 +76,7 @@ WIZnet: WIZnet TCP/IP chips SAL framework implement
 
 **Enable debug log output**：配置开启调试日志显示
 
-**Version**：版本号信息
+**Version**：软件包版本选择
 
 ## 3、使用软件包
 
@@ -86,7 +86,7 @@ WIZnet 软件包初始化函数如下所示：
 int wiz_init（void）；
 ```
 
-该初始化函数主要完成功能有，
+该函数支持组件初始化，如果开启组件自动初始化功能，则应用层无需在调用该函数 ，函数主要完成功能有，
 
 - 设置默认 MAC 地址；
 
@@ -96,13 +96,13 @@ int wiz_init（void）；
 
 - 注册实现的 BSD Socket APIs 到 SAL 套接字抽象层中，完成 WIZnet 设备适配；
 
-不同设备需要唯一的 MAC 地址，可以在应用程序中调用如下函数设置 WIZnet 设备唯一的 MAC 地址：
+不同设备需要唯一的 MAC 地址，可以在应用层程序中调用如下函数设置 WIZnet 设备唯一的 MAC 地址，如果不调用该函数，设备将使用默认的 MAC 地址（注意：同一个局域网中如果存在相同 MAC 地址的设备，可能导致网络异常） 。
 
 ```c
 int wiz_set_mac(const char *mac);
 ```
 
-设备上电自动完成初始化，接着需要设置设备 MAC 地址，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看网络连接状态，如下图所示：
+设备上电初始化完成，设置设备 MAC 地址成功，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看网络连接状态，如下图所示：
 
 ```shell
 msh />wiz_ifconfig
