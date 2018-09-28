@@ -40,7 +40,7 @@
 #define IMR_RECV                       0x04
 #define IMR_DISCON                     0x02
 #define IMR_CON                        0x01
-#define WIZ_DEFAULT_MAC                "44:39:c4:7f:e0:59"
+#define WIZ_DEFAULT_MAC                "00-E0-81-DC-53-1A"
 
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
@@ -255,28 +255,60 @@ static int wiz_network_dhcp(void)
 }
 #endif /* WIZ_USING_DHCP */
 
-static int wiz_netstr_to_array(const char *net_str, uint8_t (*net_array)[])
+static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
 {
-    int ret = 0;
+    int ret, idx;
 
     RT_ASSERT(net_str);
     RT_ASSERT(net_array);
 
-    if(strstr(net_str, ":"))
+    if (strstr(net_str, "."))
     {
-        ret = sscanf(net_str, "%02x:%02x:%02x:%02x:%02x:%02x", &(*net_array)[0], &(*net_array)[1], &(*net_array)[2],
-                &(*net_array)[3],  &(*net_array)[4],  &(*net_array)[5]);
-        if(ret != 6)
+        int ip_addr[4];
+
+        /* resolve IP address, gateway address or subnet mask */
+        ret = sscanf(net_str, "%d.%d.%d.%d", ip_addr + 0, ip_addr + 1, ip_addr + 2, ip_addr + 3);
+        if (ret != 4)
         {
+            LOG_E("input address(%s) resolve error.", net_str);
             return -RT_ERROR;
         }
-    }
-    else if (strstr(net_str, "."))
-    {
-        ret = sscanf(net_str, "%hh.%hh.%hh.%hh", &(*net_array)[0], &(*net_array)[1], &(*net_array)[2], &(*net_array)[3]);
-        if(ret != 4)
+
+        for (idx = 0; idx < 4; idx++)
         {
+            net_array[idx] = ip_addr[idx];
+        }
+    }
+    else
+    {
+        int mac_addr[6];
+
+        /* resolve MAC address */
+        if (strstr(net_str, ":"))
+        {
+            ret = sscanf(net_str, "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr + 0, mac_addr + 1, mac_addr + 2,
+                    mac_addr + 3,  mac_addr + 4,  mac_addr + 5);
+        }
+        else if (strstr(net_str, "-"))
+        {
+            ret = sscanf(net_str, "%02x-%02x-%02x-%02x-%02x-%02x", mac_addr + 0, mac_addr + 1, mac_addr + 2,
+                    mac_addr + 3,  mac_addr + 4,  mac_addr + 5);
+        }
+        else
+        {
+            LOG_E("input MAC address(%s) format error.", net_str);
             return -RT_ERROR;
+        }
+
+        if(ret != 6)
+        {
+            LOG_E("input MAC address(%s) resolve error.", net_str);
+            return -RT_ERROR;
+        }
+
+        for (idx = 0; idx < 6; idx++)
+        {
+            net_array[idx] = mac_addr[idx];
         }
     }
 
@@ -287,9 +319,9 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t (*net_array)[])
 static int wiz_network_init(void)
 {
 #ifndef WIZ_USING_DHCP
-    if(wiz_netstr_to_array(WIZ_IPADDR, &(wiz_net_info.ip)) != RT_EOK ||
-            wiz_netstr_to_array(WIZ_MSKADDR, &(wiz_net_info.sn)) != RT_EOK ||
-                wiz_netstr_to_array(WIZ_GWADDR, &(wiz_net_info.gw)) != RT_EOK)
+    if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
+            wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
+                wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
     {
         return -RT_ERROR;
     }
@@ -385,18 +417,15 @@ int wiz_set_mac(const char *mac)
 
     RT_ASSERT(mac);
 
-    if (wiz_init_status == RT_FALSE)
+    result = wiz_netstr_to_array(mac, wiz_net_info.mac);
+    if (result != RT_EOK)
     {
-        result = wiz_netstr_to_array(mac, &(wiz_net_info.mac));
-        if (result != RT_EOK)
-        {
-            LOG_E("Input MAC address process failed.");
-            return result;
-        }
+        return result;
     }
-    else
+
+    if (wiz_init_status == RT_TRUE)
     {
-        /* set default MAC address for DHCP */
+        /* set default MAC address to chip */
         setSHAR(wiz_net_info.mac);
     }
 
