@@ -44,8 +44,9 @@
 
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
+extern int wiz_inet_init(void);
 
-rt_bool_t wiz_init_status = RT_FALSE;
+rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
 
 static void _delay_us(uint32_t us)
@@ -140,7 +141,7 @@ static int wiz_chip_cfg_init(void)
     /* reset WIZnet chip internal PHY, configures PHY mode. */
     if (ctlwizchip(CW_INIT_WIZCHIP, (void*) memsize) == -1)
     {
-        rt_kprintf("WIZCHIP initialize failed.\n");
+        LOG_E("WIZCHIP initialize failed.");
         return -RT_ERROR;
     }
 
@@ -157,7 +158,7 @@ static int wiz_chip_cfg_init(void)
         /* waiting for link status online */
         if (ctlwizchip(CW_GET_PHYLINK, (void*) &phy_status) == -1)
         {
-            rt_kprintf("Unknown PHY Link stauts.\n");
+            LOG_E("Unknown PHY Link stauts.");
         }
 
         rt_thread_mdelay(100);
@@ -193,7 +194,7 @@ static void wiz_ip_assign(void)
 static void wiz_ip_conflict(void)
 {
     /* deal with conflict IP for WIZnet DHCP  */
-    rt_kprintf("conflict IP from DHCP\r\n");
+    LOG_D("conflict IP from DHCP.");
     RT_ASSERT(0);
 }
 
@@ -345,7 +346,6 @@ static int wiz_network_init(void)
     }
 #endif
 
-    LOG_D("WIZnet network initialize success.");
     return RT_EOK;
 }
 
@@ -423,7 +423,7 @@ int wiz_set_mac(const char *mac)
         return result;
     }
 
-    if (wiz_init_status == RT_TRUE)
+    if (wiz_init_ok == RT_TRUE)
     {
         /* set default MAC address to chip */
         setSHAR(wiz_net_info.mac);
@@ -437,11 +437,22 @@ int wiz_init(void)
 {
     int result = RT_EOK;
 
+    if (wiz_init_ok == RT_TRUE)
+    {
+        LOG_I("RT-Thread WIZnet package is already initialized.");
+        return RT_EOK;
+    }
+
+    result = wiz_set_mac(WIZ_DEFAULT_MAC);
+    if(result != RT_EOK)
+    {
+        goto __exit;
+    }
+
     /* WIZnet SPI device and pin initialize */
     result = wiz_device_init(WIZ_SPI_DEVICE, WIZ_RST_PIN, WIZ_IRQ_PIN);
     if (result != RT_EOK)
     {
-        LOG_E("WIZnet SPI or PIN device initialize failed.");
         goto __exit;
     }
 
@@ -464,54 +475,25 @@ int wiz_init(void)
     /* WIZnet socket initialize */
     wiz_socket_init();
 
+    /* WIZnet socket register */
+    wiz_inet_init();
+
 __exit:
     if (result == RT_EOK)
     {
-        wiz_init_status = RT_TRUE;
+        wiz_init_ok = RT_TRUE;
         LOG_I("RT-Thread WIZnet package (V%s) initialize success.", WIZ_SW_VERSION);
     }
     else
     {
-        LOG_E("RT-Thread WIZnet package (V%s) initialize failed.", WIZ_SW_VERSION);
+        LOG_E("RT-Thread WIZnet package (V%s) initialize failed(%d).", WIZ_SW_VERSION, result);
     }
 
     return result;
 }
-
-int wiz_start(int argc, char **argv)
-{
-    int result = RT_EOK;
-
-    if (argc == 1)
-    {
-        result = wiz_set_mac(WIZ_DEFAULT_MAC);
-        if(result != RT_EOK)
-        {
-            return result;
-        }
-
-        wiz_init();
-    }
-    else if(argc == 2)
-    {
-        result = wiz_set_mac(argv[1]);
-        if(result != RT_EOK)
-        {
-            return result;
-        }
-
-        wiz_init();
-    }
-    else
-    {
-        rt_kprintf("wiz_start [mac]  -- WIZnet device network start.");
-        return -RT_ERROR;
-    }
-
-    return RT_EOK;
-}
+INIT_ENV_EXPORT(wiz_init);
 
 #ifdef FINSH_USING_MSH
-MSH_CMD_EXPORT(wiz_start, WIZnet device network start);
 MSH_CMD_EXPORT(wiz_ifconfig, WIZnet ifconfig);
+MSH_CMD_EXPORT(wiz_init, WIZnet device network initialize);
 #endif

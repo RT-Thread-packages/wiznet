@@ -42,9 +42,9 @@
 #define WIZ_DEF_LOCAL_PORT             6000
 #endif
 
-extern rt_bool_t wiz_init_status;
+extern rt_bool_t wiz_init_ok;
 #define WIZ_INIT_STATUS_CHECK                                   \
-    if (wiz_init_status == RT_FALSE ||                          \
+    if (wiz_init_ok == RT_FALSE ||                              \
             (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)  \
     {                                                           \
         return -1;                                              \
@@ -657,8 +657,8 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             if (rt_sem_take(sock->recv_notice, timeout) < 0)
             {
                 LOG_E("WIZnet socket (%d) receive timeout (%d)!", socket, timeout);
-                result = -1;
                 errno = EAGAIN;
+                result = -1;
                 goto __exit;
             }
             else
@@ -748,10 +748,6 @@ __exit:
         result = recv_len;
         wiz_do_event_changes(sock, WIZ_EVENT_RECV, RT_FALSE);
 
-//        if (getSn_RX_RSR(socket) > 0)
-//        {
-//            wiz_do_event_changes(sock, WIZ_EVENT_RECV, RT_TRUE);
-//        }
         if (getSn_RX_RSR(socket) == 0)
         {
             wiz_do_event_clean(sock, WIZ_EVENT_RECV);
@@ -952,7 +948,7 @@ struct hostent *wiz_gethostbyname(const char *name)
     size_t idx = 0;
 
     /* check WIZnet initialize status */
-    if (wiz_init_status == RT_FALSE ||
+    if (wiz_init_ok == RT_FALSE ||
             (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return RT_NULL;
@@ -1015,7 +1011,7 @@ struct hostent *wiz_gethostbyname(const char *name)
     s_hostent.h_name = s_hostname;
     s_aliases = RT_NULL;
     s_hostent.h_aliases = &s_aliases;
-    s_hostent.h_addrtype = AF_AT;
+    s_hostent.h_addrtype = AF_WIZ;
     s_hostent.h_length = sizeof(ip_addr_t);
     s_hostent.h_addr_list = (char**) &s_phostent_addr;
 
@@ -1033,7 +1029,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
     int ai_family = 0;
 
     /* check WIZnet initialize status */
-    if (wiz_init_status == RT_FALSE ||
+    if (wiz_init_ok == RT_FALSE ||
             (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return EAI_FAIL;
@@ -1080,7 +1076,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 return EAI_NONAME;
             }
 
-            if (ai_family == AF_AT || ai_family == AF_INET)
+            if (ai_family == AF_WIZ || ai_family == AF_INET)
             {
                 return EAI_NONAME;
             }
@@ -1199,7 +1195,7 @@ void wiz_freeaddrinfo(struct addrinfo *ai)
     struct addrinfo *next;
 
     /* check WIZnet initialize status */
-    if (wiz_init_status == RT_FALSE ||
+    if (wiz_init_ok == RT_FALSE ||
             (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return;

@@ -111,4 +111,3 @@ int wiz_inet_init(void)
 
     return 0;
 }
-INIT_COMPONENT_EXPORT(wiz_inet_init);
