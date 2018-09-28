@@ -258,7 +258,8 @@ static int wiz_network_dhcp(void)
 
 static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
 {
-    int ret, idx;
+    int ret;
+    unsigned int idx;
 
     RT_ASSERT(net_str);
     RT_ASSERT(net_array);
@@ -275,7 +276,7 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
             return -RT_ERROR;
         }
 
-        for (idx = 0; idx < 4; idx++)
+        for (idx = 0; idx < sizeof(ip_addr); idx++)
         {
             net_array[idx] = ip_addr[idx];
         }
@@ -301,13 +302,13 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
             return -RT_ERROR;
         }
 
-        if(ret != 6)
+        if (ret != 6)
         {
             LOG_E("input MAC address(%s) resolve error.", net_str);
             return -RT_ERROR;
         }
 
-        for (idx = 0; idx < 6; idx++)
+        for (idx = 0; idx < sizeof(mac_addr); idx++)
         {
             net_array[idx] = mac_addr[idx];
         }
@@ -444,7 +445,7 @@ int wiz_init(void)
     }
 
     result = wiz_set_mac(WIZ_DEFAULT_MAC);
-    if(result != RT_EOK)
+    if (result != RT_EOK)
     {
         goto __exit;
     }
@@ -462,7 +463,7 @@ int wiz_init(void)
     wiz_callback_register();
     /* WIZnet chip configure initialize */
     result = wiz_chip_cfg_init();
-    if(result != RT_EOK)
+    if (result != RT_EOK)
     {
         goto __exit;
     }
