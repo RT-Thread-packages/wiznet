@@ -16,9 +16,8 @@
 #include <wiz_socket.h>
 
 #include <W5500/w5500.h>
-#include <DNS/dns.h>
 #ifdef WIZ_USING_DHCP
-#include <DHCP/dhcp.h>
+#include <DHCP/wizchip_dhcp.h>
 #endif
 
 #if !defined(WIZ_SPI_DEVICE) || !defined(WIZ_RST_PIN) || !defined(WIZ_IRQ_PIN)

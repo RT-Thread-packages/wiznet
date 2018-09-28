@@ -1,6 +1,6 @@
 //*****************************************************************************
 //
-//! \file dhcp.c
+//! \file wizchip_dhcp.c
 //! \brief DHCP APIs implement file.
 //! \details Processig DHCP protocol as DISCOVER, OFFER, REQUEST, ACK, NACK and DECLINE.
 //! \version 1.1.0
@@ -50,7 +50,7 @@
 //*****************************************************************************
 
 #include <wizchip_socket.h>
-#include "DHCP/dhcp.h"
+#include "DHCP/wizchip_dhcp.h"
 
 /* If you want to display debug & procssing message, Define _DHCP_DEBUG_ in dhcp.h */
 

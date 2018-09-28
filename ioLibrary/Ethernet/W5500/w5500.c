@@ -49,24 +49,21 @@
 //*****************************************************************************
 //#include <stdio.h>
 #include "w5500.h"
-#include <rtthread.h>
-#include <rtdevice.h>
+
 
 #define _W5500_SPI_VDM_OP_          0x00
 #define _W5500_SPI_FDM_OP_LEN1_     0x01
 #define _W5500_SPI_FDM_OP_LEN2_     0x02
 #define _W5500_SPI_FDM_OP_LEN4_     0x03
 
-extern struct rt_spi_device *wiz_device;
 ////////////////////////////////////////////////////
 
 uint8_t  WIZCHIP_READ(uint32_t AddrSel)
 {
-    uint8_t addr[3] = {0};
-    uint8_t data[2] = {0};
-    
-    WIZCHIP_CRITICAL_ENTER();
-//    WIZCHIP.CS._select();
+   uint8_t ret;
+
+   WIZCHIP_CRITICAL_ENTER();
+   WIZCHIP.CS._select();
 
 #if( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_SPI_))
 
@@ -78,16 +75,10 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel)
       #error "Unsupported _WIZCHIP_IO_SPI_ in W5500 !!!"
    #endif
 
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
-//    ret = WIZCHIP.IF.SPI._read_byte();
-    addr[0] = AddrSel>>16;
-    addr[1] = AddrSel>>8;
-    addr[2] = AddrSel>>0;
-    
-    rt_spi_send_then_recv(wiz_device, (const void *)addr, 3, (void *)data, 1);
-    
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
+   ret = WIZCHIP.IF.SPI._read_byte();
 
 #elif ( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_BUS_) )
 
@@ -102,18 +93,16 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel)
    #error "Unknown _WIZCHIP_IO_MODE_ in W5000. !!!"   
 #endif
 
-//    WIZCHIP.CS._deselect();
-    WIZCHIP_CRITICAL_EXIT();
-    return data[0];
+   WIZCHIP.CS._deselect();
+   WIZCHIP_CRITICAL_EXIT();
+   return ret;
 }
 
 void     WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb )
 {
-    uint8_t addr[3] = {0};
-    uint8_t data[2] = {0};
-    
     WIZCHIP_CRITICAL_ENTER();
-//    WIZCHIP.CS._select();
+    WIZCHIP.CS._select();
+
 #if( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_SPI_))
 
    #if  ( _WIZCHIP_IO_MODE_ == _WIZCHIP_IO_MODE_SPI_VDM_ )
@@ -124,16 +113,10 @@ void     WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb )
       #error "Unsupported _WIZCHIP_IO_SPI_ in W5500 !!!"
    #endif
 
-//   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
-//   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
-//   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
-//   WIZCHIP.IF.SPI._write_byte(wb);
-
-    addr[0] = AddrSel>>16;
-    addr[1] = AddrSel>>8;
-    addr[2] = AddrSel>>0;
-    data[0] = wb;
-    rt_spi_send_then_send(wiz_device, (const void *)addr, 3, (const void *)data, 1);
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
+   WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
+   WIZCHIP.IF.SPI._write_byte(wb);
 
 #elif ( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_BUS_) )
 
@@ -148,33 +131,26 @@ void     WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb )
    #error "Unknown _WIZCHIP_IO_MODE_ in W5500. !!!"
 #endif
 
-//   WIZCHIP.CS._deselect();
-    WIZCHIP_CRITICAL_EXIT();
+   WIZCHIP.CS._deselect();
+   WIZCHIP_CRITICAL_EXIT();
 }
          
 void     WIZCHIP_READ_BUF (uint32_t AddrSel, uint8_t* pBuf, uint16_t len)
 {
-//    uint16_t i = 0;
-//    uint16_t j = 0;
-    uint8_t addr[3] = {0};
-    WIZCHIP_CRITICAL_ENTER();
-//    WIZCHIP.CS._select();
+   uint16_t i = 0;
+   uint16_t j = 0;
+   WIZCHIP_CRITICAL_ENTER();
+   WIZCHIP.CS._select();
 
 #if( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_SPI_))
 
    #if  ( _WIZCHIP_IO_MODE_ == _WIZCHIP_IO_MODE_SPI_VDM_ )
       AddrSel |= (_W5500_SPI_READ_ | _W5500_SPI_VDM_OP_);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
-//    for (i = 0; i < len; i++, j)
-//        pBuf[i] = WIZCHIP.IF.SPI._read_byte();
-    addr[0] = AddrSel>>16;
-    addr[1] = AddrSel>>8;
-    addr[2] = AddrSel>>0;
-    
-     rt_spi_send_then_recv(wiz_device, (const void *)addr, 3, (void *)pBuf, len);
-    
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
+      for(i = 0; i < len; i++,j)
+        pBuf[i] = WIZCHIP.IF.SPI._read_byte();
    #elif( _WIZCHIP_IO_MODE_ == _WIZCHIP_IO_MODE_SPI_FDM_ )
       AddrSel |= (_W5500_SPI_READ_ | _W5500_SPI_FDM_OP_LEN4_);
       for(i = 0; i < len/4; i++, j)
@@ -232,37 +208,28 @@ void     WIZCHIP_READ_BUF (uint32_t AddrSel, uint8_t* pBuf, uint16_t len)
    #error "Unknown _WIZCHIP_IO_MODE_ in W5500. !!!!"
 #endif
 
-//    WIZCHIP.CS._deselect();
-    WIZCHIP_CRITICAL_EXIT();
+   WIZCHIP.CS._deselect();
+   WIZCHIP_CRITICAL_EXIT();
 }
 
 void     WIZCHIP_WRITE_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len)
 {
-//    uint16_t i = 0;
-//    uint16_t j = 0;
-    
-    uint8_t addr[3] = {0}; 
-    WIZCHIP_CRITICAL_ENTER();
-//    WIZCHIP.CS._select();
+   uint16_t i = 0;
+   uint16_t j = 0;
+   WIZCHIP_CRITICAL_ENTER();
+   WIZCHIP.CS._select();
 
 #if( (_WIZCHIP_IO_MODE_ & _WIZCHIP_IO_MODE_SPI_))
 
    #if  ( _WIZCHIP_IO_MODE_ == _WIZCHIP_IO_MODE_SPI_VDM_ )
       AddrSel |= (_W5500_SPI_WRITE_ | _W5500_SPI_VDM_OP_);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
-//    WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
-//    for (i = 0; i < len; i++, j)
-//    {
-//        WIZCHIP.IF.SPI._write_byte(pBuf[i]);
-//    }
-    
-    addr[0] = AddrSel>>16;
-    addr[1] = AddrSel>>8;
-    addr[2] = AddrSel>>0;
-    
-    rt_spi_send_then_send(wiz_device, (const void *)addr, 3, (const void *)pBuf, len);
-    
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x00FF0000) >> 16);
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x0000FF00) >>  8);
+      WIZCHIP.IF.SPI._write_byte((AddrSel & 0x000000FF) >>  0);
+      for(i = 0; i < len; i++,j)
+      {
+         WIZCHIP.IF.SPI._write_byte(pBuf[i]);
+      }
    #elif( _WIZCHIP_IO_MODE_ == _WIZCHIP_IO_MODE_SPI_FDM_ )
       AddrSel |= (_W5500_SPI_WRITE_ | _W5500_SPI_FDM_OP_LEN4_);
       for(i = 0; i < len/4; i++, j)
@@ -320,8 +287,8 @@ void     WIZCHIP_WRITE_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len)
    #error "Unknown _WIZCHIP_IO_MODE_ in W5500. !!!!"
 #endif
 
-//    WIZCHIP.CS._deselect();
-    WIZCHIP_CRITICAL_EXIT();
+   WIZCHIP.CS._deselect();
+   WIZCHIP_CRITICAL_EXIT();
 }
 
 
