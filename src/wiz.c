@@ -169,10 +169,10 @@ static int wiz_chip_cfg_init(void)
 /* WIZnet chip hardware reset */
 static void wiz_reset(void)
 {
-    rt_pin_write(WIZ_IRQ_PIN, PIN_LOW);
+    rt_pin_write(WIZ_RST_PIN, PIN_LOW);
     _delay_us(50);
 
-    rt_pin_write(WIZ_IRQ_PIN, PIN_HIGH);
+    rt_pin_write(WIZ_RST_PIN, PIN_HIGH);
     _delay_us(100);
 }
 
