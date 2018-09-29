@@ -48,15 +48,6 @@ extern int wiz_inet_init(void);
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
 
-static void _delay_us(uint32_t us)
-{
-    volatile uint32_t len;
-    for (; us > 0; us --)
-    {
-        for (len = 0; len < 20; len++);
-    }
-}
-
 static void spi_write_byte(uint8_t data)
 {
     struct rt_spi_message spi_msg;
@@ -170,10 +161,10 @@ static int wiz_chip_cfg_init(void)
 static void wiz_reset(void)
 {
     rt_pin_write(WIZ_RST_PIN, PIN_LOW);
-    _delay_us(50);
+    rt_thread_mdelay(1);
 
     rt_pin_write(WIZ_RST_PIN, PIN_HIGH);
-    _delay_us(100);
+    rt_thread_mdelay(1);
 }
 
 #ifdef WIZ_USING_DHCP
