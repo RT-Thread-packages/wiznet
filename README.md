@@ -38,7 +38,7 @@ WIZnet 软件包遵循 Apache-2.0 许可，详见 LICENSE 文件。
 
 - RT_Thread 3.0+
 - SPI 驱动：WIZnet 设备使用  SPI 进行数据通讯，需要系统 SPI 驱动框架支持；
-- PIN 驱动：用于处理设备重启和中断引脚；
+- PIN 驱动：用于处理设备复位和中断引脚；
 
 ## 2、获取软件包
 
@@ -48,14 +48,14 @@ WIZnet 软件包遵循 Apache-2.0 许可，详见 LICENSE 文件。
 WIZnet: WIZnet TCP/IP chips SAL framework implement
         WIZnet device type (W5500)  --->
         WIZnet device configure  --->
-        	(spi30) SPI device name
-        	(10) reset pin number
-        	(11) irq pin number
+            (spi30) SPI device name
+            (10) reset pin number
+            (11) irq pin number
   [ ]   Enable alloc IP address through DHCP
-  			WIZnet network configure  --->
-  				 (192.168.1.10) IPv4: IP address
-  				 (192.168.1.1) IPv4: Gateway address
-  				 (255.255.255.0) IPv4: Mask address
+            WIZnet network configure  --->
+                (192.168.1.10) IPv4: IP address
+                (192.168.1.1) IPv4: Gateway address
+                (255.255.255.0) IPv4: Mask address
   [ ]   Enable debug log output
         Version (latest)  --->
 ```
@@ -90,7 +90,7 @@ int wiz_init（void）；
 
 - 设置默认 MAC 地址；
 
-- 设备配置和初始化（配置 SPI 设备，配置重启和中断引脚）；
+- 设备配置和初始化（配置 SPI 设备，配置复位和中断引脚）；
 
 - 网络配置和初始化（DHCP 分配 IP 地址，配置 socket 参数 ）；
 
@@ -106,10 +106,10 @@ int wiz_set_mac(const char *mac);
 
 ```shell
 msh />wiz_ifconfig
-network interface: W5500		## 设备名称
-MTU: 1472					    ## 网络最大传输单元
-MAC: 00 e0 81 dc 53 1a 		    ## 设备 MAC 地址
-ip address: 192.168.12.26		## 设备 IP 地址
+network interface: W5500        ## 设备名称
+MTU: 1472                       ## 网络最大传输单元
+MAC: 00 e0 81 dc 53 1a          ## 设备 MAC 地址
+ip address: 192.168.12.26       ## 设备 IP 地址
 gw address: 192.168.10.1        ## 设备网关地址
 net mask  : 255.255.0.0         ## 设备子网掩码
 dns server : 192.168.10.1       ## 域名解析服务器地址
@@ -121,8 +121,11 @@ dns server : 192.168.10.1       ## 域名解析服务器地址
 
 ## 4、注意事项
 
+- 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号。
+
 - 如果自动初始化失败，建议手动在 FinSH 中使用 `wiz_init`  命令初始化；
-- 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突； 
+- 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
+- 软件包目前处于 `beta` 测试阶段, 推荐在 menuconfig 选项中选择 `latest` 版本； 
 
 
 ## 5、联系方式 & 感谢
