@@ -113,7 +113,7 @@ static int wiz_spi_init(const char *spi_dev_name)
     wiz_device = (struct rt_spi_device *) rt_device_find(spi_dev_name);
     if (wiz_device == RT_NULL)
     {
-        LOG_E("WIZnet SPI device %d not found!", spi_dev_name);
+        LOG_E("WIZnet SPI device %s not found!", spi_dev_name);
         return -RT_ENOSYS;
     }
 
@@ -163,7 +163,7 @@ int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_p
     }
 
     /* initialize reset pin */
-    rt_pin_mode(rst_pin, PIN_MODE_INPUT_PULLDOWN);
+    rt_pin_mode(rst_pin, PIN_MODE_OUTPUT);
 
     /* initialize interrupt pin */
     rt_pin_mode(isr_pin, PIN_MODE_INPUT_PULLUP);
