@@ -51,6 +51,10 @@
 #ifndef	_WIZCHIP_DNS_H_
 #define	_WIZCHIP_DNS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 /*
  * @brief Define it for Debug & Monitor DNS processing.
@@ -64,7 +68,7 @@
  * @todo SHOULD BE defined it equal as or greater than your Domain name lenght + null character(1)
  * @note SHOULD BE careful to stack overflow because it is allocated 1.5 times as MAX_DOMAIN_NAME in stack.
  */
-#define  MAX_DOMAIN_NAME   16       // for example "www.google.com"
+#define  MAX_DOMAIN_NAME   512       // for example "www.google.com"
 
 #define	MAX_DNS_RETRY     2        ///< Requery Count
 #define	DNS_WAIT_TIME     3        ///< Wait response time. unit 1s.
@@ -97,5 +101,9 @@ int8_t DNS_run(uint8_t * dns_ip, uint8_t * name, uint8_t * ip_from_dns);
  * @note SHOULD BE register to your system 1s Tick timer handler 
  */
 void DNS_time_handler(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif	/* _WIZCHIP_DNS_H_ */

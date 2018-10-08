@@ -60,8 +60,7 @@
 #endif
 
 #define	INITRTT		2000L	/* Initial smoothed response time */
-//#define	MAXCNAME	   (MAX_DOMAIN_NAME + (MAX_DOMAIN_NAME>>1))	   /* Maximum amount of cname recursion */
-#define	MAXCNAME	1024	   /* Maximum amount of cname recursion */
+#define	MAXCNAME	   (MAX_DOMAIN_NAME + (MAX_DOMAIN_NAME>>1))	   /* Maximum amount of cname recursion */
 
 #define	TYPE_A		1	   /* Host address */
 #define	TYPE_NS		2	   /* Name server */
@@ -121,6 +120,7 @@ uint8_t  DNS_SOCKET;    // SOCKET number for DNS
 uint16_t DNS_MSGID;     // DNS message ID
 
 uint32_t dns_1s_tick;   // for timout of DNS processing
+static uint8_t retry_count;
 
 /* converts uint16_t from network buffer to a host byte order integer. */
 uint16_t get16(uint8_t * s)
@@ -473,7 +473,6 @@ int16_t dns_makequery(uint16_t op, char * name, uint8_t * buf, uint16_t len)
 
 int8_t check_DNS_timeout(void)
 {
-	static uint8_t retry_count;
 
 	if(dns_1s_tick >= DNS_WAIT_TIME)
 	{
@@ -507,6 +506,9 @@ int8_t DNS_run(uint8_t * dns_ip, uint8_t * name, uint8_t * ip_from_dns)
 	uint8_t ip[4];
 	uint16_t len, port;
 	int8_t ret_check_timeout;
+
+	retry_count = 0;
+	dns_1s_tick = 0;
    
    // Socket open
    wizchip_socket(DNS_SOCKET, Sn_MR_UDP, 0, 0);
