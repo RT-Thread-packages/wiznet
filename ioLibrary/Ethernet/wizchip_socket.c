@@ -709,8 +709,8 @@ int32_t wizchip_recvfrom(uint8_t sn, uint8_t * buf, uint16_t len, uint8_t * addr
 			#endif
    			if(sock_remained_size[sn] > 1514) 
    			{
-   			   close(sn);
-   			   return SOCKFATAL_PACKLEN;
+   			    wizchip_close(sn);
+   			    return SOCKFATAL_PACKLEN;
    			}
    			sock_pack_info[sn] = PACK_FIRST;
    	   }
@@ -853,8 +853,8 @@ int8_t  wizchip_setsockopt(uint8_t sn, sockopt_type sotype, void* arg)
          		//if ((tmp = getSn_IR(sn)) & Sn_IR_TIMEOUT)
                if (getSn_IR(sn) & Sn_IR_TIMEOUT)
          		{
-         			setSn_IR(sn, Sn_IR_TIMEOUT);
-                  return SOCKERR_TIMEOUT;
+         		    setSn_IR(sn, Sn_IR_TIMEOUT);
+                    return SOCKERR_TIMEOUT;
          		}
             }
          break;

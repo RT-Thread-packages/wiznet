@@ -110,6 +110,11 @@ static int wiz_spi_init(const char *spi_dev_name)
 
     RT_ASSERT(spi_dev_name);
 
+    if (wiz_device != RT_NULL)
+    {
+        return 0;
+    }
+
     wiz_device = (struct rt_spi_device *) rt_device_find(spi_dev_name);
     if (wiz_device == RT_NULL)
     {
