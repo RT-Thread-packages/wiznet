@@ -486,5 +486,4 @@ INIT_ENV_EXPORT(wiz_init);
 
 #ifdef FINSH_USING_MSH
 MSH_CMD_EXPORT(wiz_ifconfig, WIZnet ifconfig);
-MSH_CMD_EXPORT(wiz_init, WIZnet device network initialize);
 #endif
