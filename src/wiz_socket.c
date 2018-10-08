@@ -367,6 +367,11 @@ static int free_socket(struct wiz_socket *sock)
         rt_mutex_delete(sock->recv_lock);
     }
 
+    if (sock->server_addr)
+    {
+        rt_free(sock->server_addr);
+    }
+
     rt_memset(sock, 0x00, sizeof(struct wiz_socket));
 
     return 0;
@@ -650,7 +655,11 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
     case Sn_MR_TCP:
     {
-        if (socket_state != SOCK_ESTABLISHED)
+        if (socket_state == SOCK_CLOSED)
+        {
+            return 0;
+        }
+        else if (socket_state != SOCK_ESTABLISHED)
         {
             LOG_E("WIZnet receive failed, get socket(%d) register state(%d) error.", socket, socket_state);
             result = -1;
@@ -686,7 +695,6 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
                 }
                 else if (sock->state == SOCK_CLOSED)
                 {
-                    LOG_D("received data exit, current socket (%d) is closed by remote.", socket);
                     result = 0;
                     goto __exit;
                 }
