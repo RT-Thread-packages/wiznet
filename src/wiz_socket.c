@@ -294,6 +294,10 @@ int wiz_socket(int domain, int type, int protocol)
         socket_type = Sn_MR_UDP;
         break;
 
+    case SOCK_RAW:
+        socket_type = Sn_MR_IPRAW;
+        break;
+
     default:
         LOG_E("don't support socket type (%d)!", type);
         return -1;
@@ -327,6 +331,7 @@ int wiz_socket(int domain, int type, int protocol)
             break;
 
         case Sn_MR_UDP:
+        case Sn_MR_IPRAW:
             if (wizchip_socket(sock->socket, sock->type, wiz_port++, 0) != sock->socket)
             {
                 LOG_E("WIZnet UDP socket(%d) create failed!", sock->socket);
@@ -360,6 +365,11 @@ static int free_socket(struct wiz_socket *sock)
     if (sock->recv_lock)
     {
         rt_mutex_delete(sock->recv_lock);
+    }
+
+    if (sock->server_addr)
+    {
+        rt_free(sock->server_addr);
     }
 
     rt_memset(sock, 0x00, sizeof(struct wiz_socket));
@@ -474,7 +484,7 @@ int wiz_connect(int socket, const struct sockaddr *name, socklen_t namelen)
     }
 
     socket_state = getSn_SR(socket);
-    if (socket_state == SOCK_UDP)
+    if (socket_state == SOCK_UDP || socket_state == SOCK_IPRAW)
     {
         if(sock->server_addr == RT_NULL)
         {
@@ -566,13 +576,15 @@ int wiz_sendto(int socket, const void *data, size_t size, int flags, const struc
         }
         break;
     }
+
     case Sn_MR_UDP:
+    case Sn_MR_IPRAW:
     {
         ip_addr_t remote_addr;
         uint16_t remote_port = 0;
         uint8_t ipstr[4] = { 0 };
 
-        if (socket_state != SOCK_UDP)
+        if (socket_state != SOCK_UDP && socket_state != SOCK_IPRAW)
         {
             LOG_E("WIZnet sendto failed, get socket(%d) register state(%d) error.", socket, socket_state);
             return -1;
@@ -643,7 +655,11 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
     case Sn_MR_TCP:
     {
-        if (socket_state != SOCK_ESTABLISHED)
+        if (socket_state == SOCK_CLOSED)
+        {
+            return 0;
+        }
+        else if (socket_state != SOCK_ESTABLISHED)
         {
             LOG_E("WIZnet receive failed, get socket(%d) register state(%d) error.", socket, socket_state);
             result = -1;
@@ -679,7 +695,6 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
                 }
                 else if (sock->state == SOCK_CLOSED)
                 {
-                    LOG_D("received data exit, current socket (%d) is closed by remote.", socket);
                     result = 0;
                     goto __exit;
                 }
@@ -690,13 +705,14 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     }
 
     case Sn_MR_UDP:
+    case Sn_MR_IPRAW:
     {
         ip_addr_t remote_addr;
         uint16_t remote_port = 0;
         uint8_t ipstr[4] = { 0 };
         uint16_t rx_len = 0;
 
-        if (socket_state != SOCK_UDP)
+        if (socket_state != SOCK_UDP && socket_state != SOCK_IPRAW)
         {
             LOG_E("WIZnet recvfrom failed, get socket(%d) register state(%d) error.", socket, socket_state);
             return -1;
@@ -973,7 +989,7 @@ struct hostent *wiz_gethostbyname(const char *name)
         for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
         if (idx >= WIZ_SOCKETS_NUM)
         {
-            LOG_E("wizenet DNS failed, socket number is full.");
+            LOG_E("WIZnet DNS failed, socket number is full.");
             return RT_NULL;
         }
 
@@ -988,7 +1004,12 @@ struct hostent *wiz_gethostbyname(const char *name)
         }
         else if (ret < 0)
         {
-            LOG_E("WIZnet gethostbyname failed(%d).", ret);
+            return RT_NULL;
+        }
+
+        /* domain resolve failed */
+        if (remote_ip[0] == 0)
+        {
             return RT_NULL;
         }
 

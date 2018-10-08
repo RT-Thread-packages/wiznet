@@ -44,6 +44,9 @@
 //*****************************************************************************
 #ifndef _WIZCHIP_DHCP_H_
 #define _WIZCHIP_DHCP_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * @brief 
@@ -63,7 +66,7 @@
 #define DHCP_CLIENT_PORT         68	      ///< DHCP client port number
 
 
-#define MAGIC_COOKIE             0x63825363  ///< Any number. You can be modifyed it any number
+#define MAGIC_COOKIE             0x63825363  ///< You should not modify it number.
 
 #define DCHP_HOST_NAME           "WIZnet\0"
 
@@ -148,5 +151,9 @@ void getDNSfromDHCP(uint8_t* ip);
  * @retrun unit 1s
  */
 uint32_t getDHCPLeasetime(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif	/* _WIZCHIP_DHCP_H_ */
