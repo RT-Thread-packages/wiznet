@@ -102,7 +102,7 @@ int wiz_init（void）；
 int wiz_set_mac(const char *mac);
 ```
 
-设备上电初始化完成，设置设备 MAC 地址成功，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看网络连接状态，如下图所示：
+设备上电初始化完成，设置设备 MAC 地址成功，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看设备 IP 地址、MAC 地址等网络信息，如下所示：
 
 ```shell
 msh />wiz_ifconfig
@@ -115,7 +115,17 @@ net mask  : 255.255.0.0         ## 设备子网掩码
 dns server : 192.168.10.1       ## 域名解析服务器地址
 ```
 
-网络连接成功，可以使用 SAL 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、mbedtls、ntp、
+获取 IP 地址成功之后，可以在 FinSH 中输入命令 `wiz_ping + 域名地址` 测试网络连接状态， 如下所示：
+
+```shell
+msh />wiz_ping baidu.com
+32 bytes from 220.181.57.216 icmp_seq=0 ttl=128 time=31 ticks
+32 bytes from 220.181.57.216 icmp_seq=1 ttl=128 time=31 ticks
+32 bytes from 220.181.57.216 icmp_seq=2 ttl=128 time=32 ticks
+32 bytes from 220.181.57.216 icmp_seq=3 ttl=128 time=32 ticks
+```
+
+`wiz_ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、mbedtls、ntp、
 
  iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇 **AF_WIZ**、次协议簇 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/))。
 
