@@ -1139,6 +1139,12 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                     return EAI_FAIL;
                 }
 
+                /* domain resolve failed */
+                if (remote_ip[0] == 0)
+                {
+                    return EAI_FAIL;
+                }
+
                 rt_snprintf(ipstr, 16, "%u.%u.%u.%u", remote_ip[0], remote_ip[1], remote_ip[2], remote_ip[3]);
             }
             else
