@@ -122,7 +122,10 @@ static int wiz_spi_init(const char *spi_dev_name)
         return -RT_ENOSYS;
     }
 
-    /* config spi */
+    /* check SPI device type */
+    RT_ASSERT(wiz_device->parent.type == RT_Device_Class_SPIDevice);
+
+    /* configure SPI device*/
     {
         struct rt_spi_configuration cfg;
         cfg.data_width = 8;
