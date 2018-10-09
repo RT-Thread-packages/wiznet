@@ -133,7 +133,18 @@ msh />wiz_ping baidu.com
 
  Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
 
-## 4、注意事项
+## 4、常见问题
+
+- SPI 设备初始化时断言问题
+
+  ```shell
+  (wiz_device->parent.type == RT_Device_Class_SPIDevice) assertion failed at function:wiz_spi_init, line number:126 
+  ```
+
+  出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备类型不正确，可以在添加 WIZnet 软件包之前在 FinSH 中使用 `list_device` 查看当前可用 SPI 设备名称，如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中添加 SPI 设备，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
+
+
+## 5、注意事项
 
 - 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号；
 
@@ -142,7 +153,7 @@ msh />wiz_ping baidu.com
 - 软件包目前处于 `beta` 测试阶段, 推荐在 menuconfig 选项中选择 `latest` 版本； 
 
 
-## 5、联系方式 & 感谢
+## 6、联系方式 & 感谢
 
 - 维护：RT-Thread 开发团队
 - 主页：https://github.com/RT-Thread-packages/wiznet
