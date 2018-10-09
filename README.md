@@ -12,7 +12,7 @@ WIZnet 软件包目录结构如下所示：
 wiznet
 ├───inc                             // RT_Thread 移植头文件
 ├───iolibrary                       // WIZnet 官方库文件
-│   └───Ethernet                    // WIZnet 官方 Socket APIs 和   WIZCHIP 驱动
+│   └───Ethernet                    // WIZnet 官方 Socket APIs 和 WIZCHIP 驱动
 │   │	└───W5500                   // WIZCHIP 驱动
 │   │   wizchip_conf.c              // Socket 配置文件
 │   │   wizchip_socket.c            // Socket APIs 文件
@@ -22,6 +22,7 @@ wiznet
 ├───src                             // RT_Thread 移植源码文件
 │   └───wiz_af_inet.c               // WIZnet BSD Socket 注册到 SAL
 │   │	wiz_device.c                // WIZnet 设备初始化
+│   │   wiz_ping.c                  // WIZnet 设备 Ping 命令实现
 │   │	wiz_socket.c                // WIZnet BSD Socket APIs 实现
 │   └───wiz.c                       // WIZnet 初始化（设备初始化、网络初始化）
 │   LICENSE                         // 软件包许可证
@@ -49,30 +50,33 @@ WIZnet: WIZnet TCP/IP chips SAL framework implement
         WIZnet device type (W5500)  --->
         WIZnet device configure  --->
             (spi30) SPI device name
-            (10) reset pin number
-            (11) irq pin number
+            (10) Reset PIN number
+            (11) IRQ PIN number
   [ ]   Enable alloc IP address through DHCP
             WIZnet network configure  --->
                 (192.168.1.10) IPv4: IP address
                 (192.168.1.1) IPv4: Gateway address
                 (255.255.255.0) IPv4: Mask address
+  [ ]   Enable Ping utility             
   [ ]   Enable debug log output
         Version (latest)  --->
 ```
 
-**WIZnet device type** ：配置支持的设备类型（目前只支持 W5500 ）
+**WIZnet device type** ：配置支持的设备类型（目前只支持 W5500 设备 ）
 
 **WIZnet device configure** ：配置使用设备的参数
 
-- **SPI device name**：配置使用 SPI 的设备名称
+- **SPI device name**：配置使用 SPI 的设备名称（注意需设置为**非 SPI 总线设备**）
 
-- **reset pin number**：配置设备连接的复位引脚号
+- **Reset PIN number**：配置设备连接的复位引脚号（根据实际使用引脚号修改）
 
-- **irq pin number**：配置设备连接的中断引脚号
+- **IRQ PIN number**：配置设备连接的中断引脚号（同上）
 
 **Enable alloc IP address through DHCP**： 配置是否使用 DHCP 分配 IP 地址（默认开启）
 
 **WIZnet network configure**：如果不开启 DHCP 功能，需要配置静态连接的 IP 地址、网关和子网掩码
+
+**Enable Ping utility**： 配置开启 Ping 命令 （默认开启）
 
 **Enable debug log output**：配置开启调试日志显示
 
@@ -96,7 +100,7 @@ int wiz_init（void）；
 
 - 注册实现的 BSD Socket APIs 到 SAL 套接字抽象层中，完成 WIZnet 设备适配；
 
-不同设备需要唯一的 MAC 地址，可以在应用层程序中调用如下函数设置 WIZnet 设备唯一的 MAC 地址，如果不调用该函数，设备将使用默认的 MAC 地址（注意：同一个局域网中如果存在相同 MAC 地址的设备，可能导致网络异常） 。
+每个 WIZnet 设备需要唯一的 MAC 地址，用户可以在应用层程序中调用如下函数设置 WIZnet 设备 MAC 地址，如果不调用该函数，设备将使用默认的 MAC 地址，默认 MAC 地址为 `00-E0-81-DC-53-1A`（注意：同一个局域网中如果存在相同 MAC 地址的设备，可能导致设备网络异常） 。
 
 ```c
 int wiz_set_mac(const char *mac);
@@ -115,7 +119,7 @@ net mask  : 255.255.0.0         ## 设备子网掩码
 dns server : 192.168.10.1       ## 域名解析服务器地址
 ```
 
-获取 IP 地址成功之后，可以在 FinSH 中输入命令 `wiz_ping + 域名地址` 测试网络连接状态， 如下所示：
+获取 IP 地址成功之后，如果开启 Ping 命令功能，可以在 FinSH 中输入命令 `wiz_ping + 域名地址` 测试网络连接状态， 如下所示：
 
 ```shell
 msh />wiz_ping baidu.com
@@ -125,16 +129,16 @@ msh />wiz_ping baidu.com
 32 bytes from 220.181.57.216 icmp_seq=3 ttl=128 time=32 ticks
 ```
 
-`wiz_ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、mbedtls、ntp、
+`wiz_ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、MbedTLS、NTP、
 
- iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇 **AF_WIZ**、次协议簇 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/))。
+ Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
 
 ## 4、注意事项
 
-- 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号。
+- 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号；
 
-- 如果自动初始化失败，建议手动在 FinSH 中使用 `wiz_init`  命令初始化；
 - 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
+
 - 软件包目前处于 `beta` 测试阶段, 推荐在 menuconfig 选项中选择 `latest` 版本； 
 
 

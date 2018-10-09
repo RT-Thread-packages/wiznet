@@ -2,7 +2,16 @@ from building import *
 
 cwd  = GetCurrentDir()
 
-src  = Glob('src/*.c')
+src = Split('''
+src/wiz_af_inet.c
+src/wiz_device.c
+src/wiz_socket.c
+src/wiz.c
+''')
+
+if GetDepend(['WIZ_USING_PING']):
+    src += Glob('src/wiz_ping.c')
+
 src += Glob('ioLibrary/Ethernet/*.c')
 src += Glob('ioLibrary/Internet/DNS/*.c')
 
