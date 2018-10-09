@@ -75,6 +75,30 @@ static uint8_t spi_read_byte(void)
     return data;
 }
 
+static void spi_write_burst(uint8_t *pbuf, uint16_t len)
+{
+    struct rt_spi_message spi_msg;
+
+    rt_memset(&spi_msg, 0x00, sizeof(spi_msg));
+
+    spi_msg.send_buf = pbuf;
+    spi_msg.length = len;
+
+    rt_spi_transfer_message(wiz_device, &spi_msg);
+}
+
+static void spi_read_burst(uint8_t *pbuf, uint16_t len)
+{
+    struct rt_spi_message spi_msg;
+
+    rt_memset(&spi_msg, 0x00, sizeof(spi_msg));
+
+    spi_msg.recv_buf = pbuf;
+    spi_msg.length = len;
+
+    rt_spi_transfer_message(wiz_device, &spi_msg);
+}
+
 static void spi_cris_enter(void)
 {
     rt_enter_critical();
@@ -111,8 +135,9 @@ static int wiz_callback_register(void)
     reg_wizchip_cs_cbfunc(wizchip_select, wizchip_deselect);
 #endif
 #endif
-    /* register SPI device read/write one byte callback function */
+    /* register SPI device read/write data callback function */
     reg_wizchip_spi_cbfunc(spi_read_byte, spi_write_byte);
+    reg_wizchip_spiburst_cbfunc(spi_read_burst, spi_write_burst);
 
     return RT_EOK;
 }
