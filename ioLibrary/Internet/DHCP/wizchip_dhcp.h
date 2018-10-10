@@ -58,7 +58,8 @@ extern "C" {
 
 /* Retry to processing DHCP */
 #define	MAX_DHCP_RETRY          2        ///< Maxium retry count
-#define	DHCP_WAIT_TIME          10       ///< Wait Time 10s
+/* WIZnet package change DHCP timeout */
+#define	DHCP_WAIT_TIME          1       ///< Wait Time 1s
 
 
 /* UDP port numbers for DHCP */
