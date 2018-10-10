@@ -213,14 +213,20 @@ static void wiz_ip_conflict(void)
     RT_ASSERT(0);
 }
 
+static void wiz_dhcp_timer_entry(void *parameter)
+{
+    DHCP_time_handler();
+}
+
 static int wiz_network_dhcp(void)
 {
 #define WIZ_DHCP_SOCKET      0
-#define WIZ_DHCP_TIMEOUT     (5 * RT_TICK_PER_SECOND)
+#define WIZ_DHCP_RETRY       5
 
-    rt_tick_t start_tick, now_tick;
     uint8_t dhcp_status;
     uint8_t data_buffer[1024];
+    uint8_t dhcp_times = 0;
+    rt_timer_t dhcp_timer;
 
     /* set default MAC address for DHCP */
     setSHAR(wiz_net_info.mac);
@@ -231,17 +237,15 @@ static int wiz_network_dhcp(void)
     /* register to assign IP address and conflict callback */
     reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
 
-    start_tick = rt_tick_get();
+    dhcp_timer = rt_timer_create("w_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    if (dhcp_timer == RT_NULL)
+    {
+        return -RT_ERROR;
+    }
+    rt_timer_start(dhcp_timer);
+
     while (1)
     {
-        /* check DHCP timeout */
-        now_tick = rt_tick_get();
-        if (now_tick - start_tick > WIZ_DHCP_TIMEOUT)
-        {
-            DHCP_stop();
-            return -RT_ETIMEOUT;
-        }
-
         /* DHCP start, return DHCP_IP_LEASED is success. */
         dhcp_status = DHCP_run();
         switch (dhcp_status)
@@ -255,18 +259,23 @@ static int wiz_network_dhcp(void)
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
+            rt_timer_delete(dhcp_timer);
             return RT_EOK;
         }
         case DHCP_FAILED:
         {
-            DHCP_stop();
-            return -RT_ERROR;
+            dhcp_times ++;
+            if (dhcp_times > WIZ_DHCP_RETRY)
+            {
+                DHCP_stop();
+                rt_timer_delete(dhcp_timer);
+                return -RT_ETIMEOUT;
+            }
+            break;
         }
         default:
-            continue;
+            break;
         }
-
-        rt_thread_mdelay(100);
     }
 }
 #endif /* WIZ_USING_DHCP */
