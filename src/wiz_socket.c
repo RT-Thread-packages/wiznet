@@ -761,6 +761,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
 __exit:
     if (recv_len > 0)
     {
+        errno = 0;
         result = recv_len;
         wiz_do_event_changes(sock, WIZ_EVENT_RECV, RT_FALSE);
 
