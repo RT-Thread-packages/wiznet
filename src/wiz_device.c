@@ -49,7 +49,7 @@ static void wiz_data_thread_entry(void *parameter)
 
     while (1)
     {
-        if (rt_mb_recv(wiz_rx_mb, (rt_uint32_t*) &dev, RT_WAITING_FOREVER) == RT_EOK)
+        if (rt_mb_recv(wiz_rx_mb, (rt_ubase_t*) &dev, RT_WAITING_FOREVER) == RT_EOK)
         {
             uint8_t ir, sir, sn_ir;
             int8_t socket = -1;
