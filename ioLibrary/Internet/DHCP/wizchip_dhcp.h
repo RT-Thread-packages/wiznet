@@ -1,6 +1,6 @@
 //*****************************************************************************
 //
-//! \file dhcp.h
+//! \file wizchip_dhcp.h
 //! \brief DHCP APIs Header file.
 //! \details Processig DHCP protocol as DISCOVER, OFFER, REQUEST, ACK, NACK and DECLINE.
 //! \version 1.1.0
@@ -42,8 +42,11 @@
 //! THE POSSIBILITY OF SUCH DAMAGE.
 //
 //*****************************************************************************
-#ifndef _DHCP_H_
-#define _DHCP_H_
+#ifndef _WIZCHIP_DHCP_H_
+#define _WIZCHIP_DHCP_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * @brief 
@@ -55,7 +58,8 @@
 
 /* Retry to processing DHCP */
 #define	MAX_DHCP_RETRY          2        ///< Maxium retry count
-#define	DHCP_WAIT_TIME          10       ///< Wait Time 10s
+/* WIZnet package change DHCP timeout */
+#define	DHCP_WAIT_TIME          1       ///< Wait Time 1s
 
 
 /* UDP port numbers for DHCP */
@@ -63,7 +67,7 @@
 #define DHCP_CLIENT_PORT         68	      ///< DHCP client port number
 
 
-#define MAGIC_COOKIE             0x63825363  ///< Any number. You can be modifyed it any number
+#define MAGIC_COOKIE             0x63825363  ///< You should not modify it number.
 
 #define DCHP_HOST_NAME           "WIZnet\0"
 
@@ -149,4 +153,8 @@ void getDNSfromDHCP(uint8_t* ip);
  */
 uint32_t getDHCPLeasetime(void);
 
-#endif	/* _DHCP_H_ */
+#ifdef __cplusplus
+}
+#endif
+
+#endif	/* _WIZCHIP_DHCP_H_ */

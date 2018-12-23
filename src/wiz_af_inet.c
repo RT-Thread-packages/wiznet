@@ -61,7 +61,7 @@ static int wiz_poll(struct dfs_fd *file, struct rt_pollreq *req)
 }
 #endif
 
-static const struct proto_ops wiz_inet_stream_ops =
+static const struct sal_socket_ops wiz_socket_ops =
 {
     wiz_socket,
     wiz_closesocket,
@@ -83,32 +83,36 @@ static const struct proto_ops wiz_inet_stream_ops =
 #endif /* SAL_USING_POSIX */
 };
 
+static struct sal_proto_ops wiz_proto_ops = 
+{
+    wiz_gethostbyname,
+    NULL,
+    wiz_getaddrinfo,
+    wiz_freeaddrinfo,
+};
+
 static int wiz_create(struct sal_socket *socket, int type, int protocol)
 {
     RT_ASSERT(socket);
 
     //TODO Check type & protocol
 
-    socket->ops = &wiz_inet_stream_ops;
+    socket->ops = &wiz_socket_ops;
 
     return 0;
 }
 
-static const struct proto_family wiz_inet_family_ops = {
-    "wiz",
+static const struct sal_proto_family wiz_inet_famils =
+{
     AF_WIZ,
     AF_INET,
-    wiz_create,
-    wiz_gethostbyname,
-    NULL,
-    wiz_freeaddrinfo,
-    wiz_getaddrinfo,
+    wiz_create,  
+    &wiz_proto_ops,
 };
 
 int wiz_inet_init(void)
 {
-    sal_proto_family_register(&wiz_inet_family_ops);
+    sal_proto_family_register(&wiz_inet_famils);
 
     return 0;
 }
-INIT_COMPONENT_EXPORT(wiz_inet_init);

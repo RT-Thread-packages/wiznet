@@ -16,9 +16,8 @@
 #include <wiz_socket.h>
 
 #include <W5500/w5500.h>
-#include <DNS/dns.h>
 #ifdef WIZ_USING_DHCP
-#include <DHCP/dhcp.h>
+#include <DHCP/wizchip_dhcp.h>
 #endif
 
 #if !defined(WIZ_SPI_DEVICE) || !defined(WIZ_RST_PIN) || !defined(WIZ_IRQ_PIN)
@@ -40,22 +39,14 @@
 #define IMR_RECV                       0x04
 #define IMR_DISCON                     0x02
 #define IMR_CON                        0x01
-#define WIZ_DEFAULT_MAC                "44:39:c4:7f:e0:59"
+#define WIZ_DEFAULT_MAC                "00-E0-81-DC-53-1A"
 
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
+extern int wiz_inet_init(void);
 
-rt_bool_t wiz_init_status = RT_FALSE;
+rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
-
-static void _delay_us(uint32_t us)
-{
-    volatile uint32_t len;
-    for (; us > 0; us --)
-    {
-        for (len = 0; len < 20; len++);
-    }
-}
 
 static void spi_write_byte(uint8_t data)
 {
@@ -82,6 +73,30 @@ static uint8_t spi_read_byte(void)
     rt_spi_transfer_message(wiz_device, &spi_msg);
 
     return data;
+}
+
+static void spi_write_burst(uint8_t *pbuf, uint16_t len)
+{
+    struct rt_spi_message spi_msg;
+
+    rt_memset(&spi_msg, 0x00, sizeof(spi_msg));
+
+    spi_msg.send_buf = pbuf;
+    spi_msg.length = len;
+
+    rt_spi_transfer_message(wiz_device, &spi_msg);
+}
+
+static void spi_read_burst(uint8_t *pbuf, uint16_t len)
+{
+    struct rt_spi_message spi_msg;
+
+    rt_memset(&spi_msg, 0x00, sizeof(spi_msg));
+
+    spi_msg.recv_buf = pbuf;
+    spi_msg.length = len;
+
+    rt_spi_transfer_message(wiz_device, &spi_msg);
 }
 
 static void spi_cris_enter(void)
@@ -120,8 +135,9 @@ static int wiz_callback_register(void)
     reg_wizchip_cs_cbfunc(wizchip_select, wizchip_deselect);
 #endif
 #endif
-    /* register SPI device read/write one byte callback function */
+    /* register SPI device read/write data callback function */
     reg_wizchip_spi_cbfunc(spi_read_byte, spi_write_byte);
+    reg_wizchip_spiburst_cbfunc(spi_read_burst, spi_write_burst);
 
     return RT_EOK;
 }
@@ -140,7 +156,7 @@ static int wiz_chip_cfg_init(void)
     /* reset WIZnet chip internal PHY, configures PHY mode. */
     if (ctlwizchip(CW_INIT_WIZCHIP, (void*) memsize) == -1)
     {
-        rt_kprintf("WIZCHIP initialize failed.\n");
+        LOG_E("WIZCHIP initialize failed.");
         return -RT_ERROR;
     }
 
@@ -157,7 +173,7 @@ static int wiz_chip_cfg_init(void)
         /* waiting for link status online */
         if (ctlwizchip(CW_GET_PHYLINK, (void*) &phy_status) == -1)
         {
-            rt_kprintf("Unknown PHY Link stauts.\n");
+            LOG_E("Unknown PHY Link stauts.");
         }
 
         rt_thread_mdelay(100);
@@ -169,11 +185,11 @@ static int wiz_chip_cfg_init(void)
 /* WIZnet chip hardware reset */
 static void wiz_reset(void)
 {
-    rt_pin_write(WIZ_IRQ_PIN, PIN_LOW);
-    _delay_us(50);
+    rt_pin_write(WIZ_RST_PIN, PIN_LOW);
+    rt_thread_mdelay(1);
 
-    rt_pin_write(WIZ_IRQ_PIN, PIN_HIGH);
-    _delay_us(100);
+    rt_pin_write(WIZ_RST_PIN, PIN_HIGH);
+    rt_thread_mdelay(1);
 }
 
 #ifdef WIZ_USING_DHCP
@@ -193,18 +209,24 @@ static void wiz_ip_assign(void)
 static void wiz_ip_conflict(void)
 {
     /* deal with conflict IP for WIZnet DHCP  */
-    rt_kprintf("conflict IP from DHCP\r\n");
+    LOG_D("conflict IP from DHCP.");
     RT_ASSERT(0);
+}
+
+static void wiz_dhcp_timer_entry(void *parameter)
+{
+    DHCP_time_handler();
 }
 
 static int wiz_network_dhcp(void)
 {
 #define WIZ_DHCP_SOCKET      0
-#define WIZ_DHCP_TIMEOUT     (5 * RT_TICK_PER_SECOND)
+#define WIZ_DHCP_RETRY       5
 
-    rt_tick_t start_tick, now_tick;
     uint8_t dhcp_status;
     uint8_t data_buffer[1024];
+    uint8_t dhcp_times = 0;
+    rt_timer_t dhcp_timer;
 
     /* set default MAC address for DHCP */
     setSHAR(wiz_net_info.mac);
@@ -215,17 +237,15 @@ static int wiz_network_dhcp(void)
     /* register to assign IP address and conflict callback */
     reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
 
-    start_tick = rt_tick_get();
+    dhcp_timer = rt_timer_create("w_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    if (dhcp_timer == RT_NULL)
+    {
+        return -RT_ERROR;
+    }
+    rt_timer_start(dhcp_timer);
+
     while (1)
     {
-        /* check DHCP timeout */
-        now_tick = rt_tick_get();
-        if (now_tick - start_tick > WIZ_DHCP_TIMEOUT)
-        {
-            DHCP_stop();
-            return -RT_ETIMEOUT;
-        }
-
         /* DHCP start, return DHCP_IP_LEASED is success. */
         dhcp_status = DHCP_run();
         switch (dhcp_status)
@@ -239,44 +259,82 @@ static int wiz_network_dhcp(void)
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
+            rt_timer_delete(dhcp_timer);
             return RT_EOK;
         }
         case DHCP_FAILED:
         {
-            DHCP_stop();
-            return -RT_ERROR;
+            dhcp_times ++;
+            if (dhcp_times > WIZ_DHCP_RETRY)
+            {
+                DHCP_stop();
+                rt_timer_delete(dhcp_timer);
+                return -RT_ETIMEOUT;
+            }
+            break;
         }
         default:
-            continue;
+            break;
         }
-
-        rt_thread_mdelay(100);
     }
 }
 #endif /* WIZ_USING_DHCP */
 
-static int wiz_netstr_to_array(const char *net_str, uint8_t (*net_array)[])
+static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
 {
-    int ret = 0;
+    int ret;
+    unsigned int idx;
 
     RT_ASSERT(net_str);
     RT_ASSERT(net_array);
 
-    if(strstr(net_str, ":"))
+    if (strstr(net_str, "."))
     {
-        ret = sscanf(net_str, "%02x:%02x:%02x:%02x:%02x:%02x", &(*net_array)[0], &(*net_array)[1], &(*net_array)[2],
-                &(*net_array)[3],  &(*net_array)[4],  &(*net_array)[5]);
-        if(ret != 6)
+        int ip_addr[4];
+
+        /* resolve IP address, gateway address or subnet mask */
+        ret = sscanf(net_str, "%d.%d.%d.%d", ip_addr + 0, ip_addr + 1, ip_addr + 2, ip_addr + 3);
+        if (ret != 4)
         {
+            LOG_E("input address(%s) resolve error.", net_str);
             return -RT_ERROR;
         }
-    }
-    else if (strstr(net_str, "."))
-    {
-        ret = sscanf(net_str, "%hh.%hh.%hh.%hh", &(*net_array)[0], &(*net_array)[1], &(*net_array)[2], &(*net_array)[3]);
-        if(ret != 4)
+
+        for (idx = 0; idx < sizeof(ip_addr); idx++)
         {
+            net_array[idx] = ip_addr[idx];
+        }
+    }
+    else
+    {
+        int mac_addr[6];
+
+        /* resolve MAC address */
+        if (strstr(net_str, ":"))
+        {
+            ret = sscanf(net_str, "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr + 0, mac_addr + 1, mac_addr + 2,
+                    mac_addr + 3,  mac_addr + 4,  mac_addr + 5);
+        }
+        else if (strstr(net_str, "-"))
+        {
+            ret = sscanf(net_str, "%02x-%02x-%02x-%02x-%02x-%02x", mac_addr + 0, mac_addr + 1, mac_addr + 2,
+                    mac_addr + 3,  mac_addr + 4,  mac_addr + 5);
+        }
+        else
+        {
+            LOG_E("input MAC address(%s) format error.", net_str);
             return -RT_ERROR;
+        }
+
+        if (ret != 6)
+        {
+            LOG_E("input MAC address(%s) resolve error.", net_str);
+            return -RT_ERROR;
+        }
+
+        for (idx = 0; idx < sizeof(mac_addr); idx++)
+        {
+            net_array[idx] = mac_addr[idx];
         }
     }
 
@@ -287,9 +345,9 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t (*net_array)[])
 static int wiz_network_init(void)
 {
 #ifndef WIZ_USING_DHCP
-    if(wiz_netstr_to_array(WIZ_IPADDR, &(wiz_net_info.ip)) != RT_EOK ||
-            wiz_netstr_to_array(WIZ_MSKADDR, &(wiz_net_info.sn)) != RT_EOK ||
-                wiz_netstr_to_array(WIZ_GWADDR, &(wiz_net_info.gw)) != RT_EOK)
+    if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
+            wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
+                wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
     {
         return -RT_ERROR;
     }
@@ -313,7 +371,6 @@ static int wiz_network_init(void)
     }
 #endif
 
-    LOG_D("WIZnet network initialize success.");
     return RT_EOK;
 }
 
@@ -385,18 +442,15 @@ int wiz_set_mac(const char *mac)
 
     RT_ASSERT(mac);
 
-    if (wiz_init_status == RT_FALSE)
+    result = wiz_netstr_to_array(mac, wiz_net_info.mac);
+    if (result != RT_EOK)
     {
-        result = wiz_netstr_to_array(mac, &(wiz_net_info.mac));
-        if (result != RT_EOK)
-        {
-            LOG_E("Input MAC address process failed.");
-            return result;
-        }
+        return result;
     }
-    else
+
+    if (wiz_init_ok == RT_TRUE)
     {
-        /* set default MAC address for DHCP */
+        /* set default MAC address to chip */
         setSHAR(wiz_net_info.mac);
     }
 
@@ -408,11 +462,22 @@ int wiz_init(void)
 {
     int result = RT_EOK;
 
+    if (wiz_init_ok == RT_TRUE)
+    {
+        LOG_I("RT-Thread WIZnet package is already initialized.");
+        return RT_EOK;
+    }
+
+    result = wiz_set_mac(WIZ_DEFAULT_MAC);
+    if (result != RT_EOK)
+    {
+        goto __exit;
+    }
+
     /* WIZnet SPI device and pin initialize */
     result = wiz_device_init(WIZ_SPI_DEVICE, WIZ_RST_PIN, WIZ_IRQ_PIN);
     if (result != RT_EOK)
     {
-        LOG_E("WIZnet SPI or PIN device initialize failed.");
         goto __exit;
     }
 
@@ -422,7 +487,7 @@ int wiz_init(void)
     wiz_callback_register();
     /* WIZnet chip configure initialize */
     result = wiz_chip_cfg_init();
-    if(result != RT_EOK)
+    if (result != RT_EOK)
     {
         goto __exit;
     }
@@ -435,54 +500,24 @@ int wiz_init(void)
     /* WIZnet socket initialize */
     wiz_socket_init();
 
+    /* WIZnet socket register */
+    wiz_inet_init();
+
 __exit:
     if (result == RT_EOK)
     {
-        wiz_init_status = RT_TRUE;
+        wiz_init_ok = RT_TRUE;
         LOG_I("RT-Thread WIZnet package (V%s) initialize success.", WIZ_SW_VERSION);
     }
     else
     {
-        LOG_E("RT-Thread WIZnet package (V%s) initialize failed.", WIZ_SW_VERSION);
+        LOG_E("RT-Thread WIZnet package (V%s) initialize failed(%d).", WIZ_SW_VERSION, result);
     }
 
     return result;
 }
-
-int wiz_start(int argc, char **argv)
-{
-    int result = RT_EOK;
-
-    if (argc == 1)
-    {
-        result = wiz_set_mac(WIZ_DEFAULT_MAC);
-        if(result != RT_EOK)
-        {
-            return result;
-        }
-
-        wiz_init();
-    }
-    else if(argc == 2)
-    {
-        result = wiz_set_mac(argv[1]);
-        if(result != RT_EOK)
-        {
-            return result;
-        }
-
-        wiz_init();
-    }
-    else
-    {
-        rt_kprintf("wiz_start [mac]  -- WIZnet device network start.");
-        return -RT_ERROR;
-    }
-
-    return RT_EOK;
-}
+INIT_ENV_EXPORT(wiz_init);
 
 #ifdef FINSH_USING_MSH
-MSH_CMD_EXPORT(wiz_start, WIZnet device network start);
 MSH_CMD_EXPORT(wiz_ifconfig, WIZnet ifconfig);
 #endif

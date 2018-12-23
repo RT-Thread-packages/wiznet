@@ -49,7 +49,7 @@ static void wiz_data_thread_entry(void *parameter)
 
     while (1)
     {
-        if (rt_mb_recv(wiz_rx_mb, (rt_uint32_t*) &dev, RT_WAITING_FOREVER) == RT_EOK)
+        if (rt_mb_recv(wiz_rx_mb, (rt_ubase_t*) &dev, RT_WAITING_FOREVER) == RT_EOK)
         {
             uint8_t ir, sir, sn_ir;
             int8_t socket = -1;
@@ -110,14 +110,22 @@ static int wiz_spi_init(const char *spi_dev_name)
 
     RT_ASSERT(spi_dev_name);
 
+    if (wiz_device != RT_NULL)
+    {
+        return 0;
+    }
+
     wiz_device = (struct rt_spi_device *) rt_device_find(spi_dev_name);
     if (wiz_device == RT_NULL)
     {
-        LOG_E("WIZnet SPI device %d not found!", spi_dev_name);
+        LOG_E("WIZnet SPI device %s not found!", spi_dev_name);
         return -RT_ENOSYS;
     }
 
-    /* config spi */
+    /* check SPI device type */
+    RT_ASSERT(wiz_device->parent.type == RT_Device_Class_SPIDevice);
+
+    /* configure SPI device*/
     {
         struct rt_spi_configuration cfg;
         cfg.data_width = 8;
@@ -128,7 +136,7 @@ static int wiz_spi_init(const char *spi_dev_name)
 
     if (rt_device_open((rt_device_t) wiz_device, RT_DEVICE_OFLAG_RDWR) != RT_EOK)
     {
-        rt_kprintf("open WIZnet SPI device %s error\n", spi_dev_name);
+        LOG_E("open WIZnet SPI device %s error.", spi_dev_name);
         return -RT_ERROR;
     }
 
@@ -141,7 +149,7 @@ static int wiz_spi_init(const char *spi_dev_name)
     }
 
     /* create WIZnet SPI RX thread  */
-    tid = rt_thread_create("wiz", wiz_data_thread_entry, RT_NULL, 2 * 1024, RT_THREAD_PRIORITY_MAX / 6, 20);
+    tid = rt_thread_create("wiz", wiz_data_thread_entry, RT_NULL, 512, RT_THREAD_PRIORITY_MAX / 6, 20);
     if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
@@ -158,11 +166,12 @@ int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_p
     result = wiz_spi_init(spi_dev_name);
     if (result != RT_EOK)
     {
+        LOG_E("WIZnet SPI device initialize failed.");
         return result;
     }
 
     /* initialize reset pin */
-    rt_pin_mode(rst_pin, PIN_MODE_INPUT_PULLDOWN);
+    rt_pin_mode(rst_pin, PIN_MODE_OUTPUT);
 
     /* initialize interrupt pin */
     rt_pin_mode(isr_pin, PIN_MODE_INPUT_PULLUP);
