@@ -655,6 +655,20 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
     case Sn_MR_TCP:
     {
+        uint16_t recvsize = getSn_RX_RSR(socket);
+        /* receive last transmission of remaining data */
+        if(recvsize>0)
+        {    
+            rt_mutex_take(sock->recv_lock, RT_WAITING_FOREVER);
+            recv_len = wizchip_recv(socket, mem, len);
+            if (recv_len > 0)
+            {
+                rt_mutex_release(sock->recv_lock);
+                goto __exit;
+            }
+            rt_mutex_release(sock->recv_lock);
+        }
+        
         if (socket_state == SOCK_CLOSED)
         {
             return 0;
