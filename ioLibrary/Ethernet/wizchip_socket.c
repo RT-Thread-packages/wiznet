@@ -423,6 +423,10 @@ int32_t wizchip_recv(uint8_t sn, uint8_t * buf, uint16_t len)
             else
             {
                wizchip_close(sn);
+               if(recvsize != 0)
+               { 
+                   break;
+               } 		    
                return SOCKERR_SOCKSTATUS;
             }
          }
