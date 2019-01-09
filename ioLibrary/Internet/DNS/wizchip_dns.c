@@ -340,7 +340,7 @@ int8_t parseDNSMSG(struct dhdr * pdhdr, uint8_t * pbuf, uint8_t * ip_from_dns)
 	uint8_t * cp;
 
 	msg = pbuf;
-	memset(pdhdr, 0, sizeof(pdhdr));
+	memset(pdhdr, 0, sizeof(*pdhdr));
 
 	pdhdr->id = get16(&msg[0]);
 	tmp = get16(&msg[2]);
