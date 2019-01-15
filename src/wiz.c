@@ -47,6 +47,7 @@ extern int wiz_inet_init(void);
 
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
+static rt_timer_t  dns_tick_timer;
 
 static void spi_write_byte(uint8_t data)
 {
@@ -457,6 +458,11 @@ int wiz_set_mac(const char *mac)
     return RT_EOK;
 }
 
+static void wiz_dns_time_handler(void* arg)
+{    
+    DNS_time_handler();
+}
+
 /* WIZnet initialize device and network */
 int wiz_init(void)
 {
@@ -502,6 +508,9 @@ int wiz_init(void)
 
     /* WIZnet socket register */
     wiz_inet_init();
+    
+    dns_tick_timer = rt_timer_create("dns_tick", wiz_dns_time_handler, RT_NULL, 1*RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
+    rt_timer_start(dns_tick_timer);
 
 __exit:
     if (result == RT_EOK)
