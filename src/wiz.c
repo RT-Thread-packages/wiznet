@@ -300,7 +300,7 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
             return -RT_ERROR;
         }
 
-        for (idx = 0; idx < sizeof(ip_addr); idx++)
+        for (idx = 0; idx < sizeof(ip_addr)/sizeof(ip_addr[0]); idx++)
         {
             net_array[idx] = ip_addr[idx];
         }
@@ -332,7 +332,7 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
             return -RT_ERROR;
         }
 
-        for (idx = 0; idx < sizeof(mac_addr); idx++)
+        for (idx = 0; idx < sizeof(mac_addr)/sizeof(mac_addr[0]); idx++)
         {
             net_array[idx] = mac_addr[idx];
         }
