@@ -96,7 +96,8 @@ static void wiz_data_thread_entry(void *parameter)
                     }
                     if (sn_ir & Sn_IR_TIMEOUT)
                     {
-                        setSn_IR(socket, Sn_IR_TIMEOUT);
+                        /* deal with timeout event in the wiznet ioLibrary */
+                        //setSn_IR(socket, Sn_IR_TIMEOUT);
                     }
                 }
             }
