@@ -306,6 +306,7 @@ int8_t wizchip_disconnect(uint8_t sn)
 	{
 	   if(getSn_IR(sn) & Sn_IR_TIMEOUT)
 	   {
+	      setSn_IR(sn, Sn_IR_TIMEOUT);
 	      wizchip_close(sn);
 	      return SOCKERR_TIMEOUT;
 	   }
@@ -343,6 +344,7 @@ int32_t wizchip_send(uint8_t sn, uint8_t * buf, uint16_t len)
       }
       else if(tmp & Sn_IR_TIMEOUT)
       {
+         setSn_IR(sn, Sn_IR_TIMEOUT);
          wizchip_close(sn);
          return SOCKERR_TIMEOUT;
       }
