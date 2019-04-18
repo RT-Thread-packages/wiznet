@@ -17,8 +17,8 @@ extern "C" {
 
 #include <rtthread.h>
 
-#define WIZ_SW_VERSION       "0.2.0"
-#define WIZ_SW_VERSION_NUM   0x000200
+#define WIZ_SW_VERSION       "1.1.0"
+#define WIZ_SW_VERSION_NUM   0x010100
 
 #ifndef WIZ_SOCKETS_NUM
 #define WIZ_SOCKETS_NUM      8
