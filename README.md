@@ -37,8 +37,9 @@ WIZnet 软件包遵循 Apache-2.0 许可，详见 LICENSE 文件。
 
 ### 1.3 依赖
 
-- RT-Thread 3.1.1+
+- RT-Thread 4.0.0+
 - SAL 组件
+- netdev 组件
 - SPI 驱动：WIZnet 设备使用  SPI 进行数据通讯，需要系统 SPI 驱动框架支持；
 - PIN 驱动：用于处理设备复位和中断引脚；
 
@@ -110,17 +111,19 @@ int wiz_set_mac(const char *mac);
 设备上电初始化完成，设置设备 MAC 地址成功，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看设备 IP 地址、MAC 地址等网络信息，如下所示：
 
 ```shell
-msh />wiz_ifconfig
-network interface: W5500        ## 设备名称
-MTU: 1472                       ## 网络最大传输单元
-MAC: 00 e0 81 dc 53 1a          ## 设备 MAC 地址
-ip address: 192.168.12.26       ## 设备 IP 地址
-gw address: 192.168.10.1        ## 设备网关地址
-net mask  : 255.255.0.0         ## 设备子网掩码
-dns server : 192.168.10.1       ## 域名解析服务器地址
+msh />ifconfig
+network interface device: W5500 (Default)        ## 设备名称
+MTU: 1472                                        ## 网络最大传输单元
+MAC: 00 e0 81 dc 53 1a                           ## 设备 MAC 地址
+FLAGS: UP LINK_UP INTERNET_UP                    ## 设备标志
+ip address: 192.168.12.26                        ## 设备 IP 地址
+gw address: 192.168.10.1                         ## 设备网关地址
+net mask  : 255.255.0.0                          ## 设备子网掩码
+dns server #0: 192.168.10.1                      ## 域名解析服务器地址0
+dns server #1: 0.0.0.0                           ## 域名解析服务器地址1
 ```
 
-获取 IP 地址成功之后，如果开启 Ping 命令功能，可以在 FinSH 中输入命令 `wiz_ping + 域名地址` 测试网络连接状态， 如下所示：
+获取 IP 地址成功之后，如果开启 Ping 命令功能，可以在 FinSH 中输入命令 `ping + 域名地址` 测试网络连接状态， 如下所示：
 
 ```shell
 msh />wiz_ping baidu.com
@@ -130,9 +133,7 @@ msh />wiz_ping baidu.com
 32 bytes from 220.181.57.216 icmp_seq=3 ttl=128 time=32 ticks
 ```
 
-`wiz_ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、MbedTLS、NTP、
-
- Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
+`ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、MbedTLS、NTP、Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
 
 ## 4、常见问题
 
@@ -144,6 +145,8 @@ msh />wiz_ping baidu.com
 
   出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备类型不正确，可以在添加 WIZnet 软件包之前在 FinSH 中使用 `list_device` 查看当前可用 SPI 设备名称，如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中添加 SPI 设备，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
 
+- WIZnet 不支持 server 模式。
+
 
 ## 5、注意事项
 
@@ -151,7 +154,6 @@ msh />wiz_ping baidu.com
 
 - 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
 
-- 软件包目前处于 `beta` 测试阶段, 推荐在 menuconfig 选项中选择 `latest` 版本； 
 
 
 ## 6、联系方式 & 感谢

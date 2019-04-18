@@ -20,6 +20,8 @@
 #include <DHCP/wizchip_dhcp.h>
 #endif
 
+#include <netdev.h>
+
 #if !defined(WIZ_SPI_DEVICE) || !defined(WIZ_RST_PIN) || !defined(WIZ_IRQ_PIN)
 #error "please config SPI device name, reset pin and irq pin in menuconfig."
 #endif
@@ -41,9 +43,13 @@
 #define IMR_CON                        0x01
 #define WIZ_DEFAULT_MAC                "00-E0-81-DC-53-1A"
 
+#define WIZ_ID_LEN                     6
+char wiz_netdev_name[WIZ_ID_LEN];
+
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
 extern int wiz_inet_init(void);
+static int wiz_netdev_info_update(struct netdev *netdev);
 
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
@@ -221,7 +227,7 @@ static void wiz_dhcp_timer_entry(void *parameter)
 
 static int wiz_network_dhcp(void)
 {
-#define WIZ_DHCP_SOCKET      0
+#define WIZ_DHCP_SOCKET      7
 #define WIZ_DHCP_RETRY       5
 
     uint8_t dhcp_status;
@@ -345,11 +351,15 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
 /* initialize WIZnet network configures */
 static int wiz_network_init(void)
 {
+    struct netdev * netdev;
+
 #ifndef WIZ_USING_DHCP
     if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
             wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
                 wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
     {
+        netdev_low_level_set_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
+        netdev_low_level_set_link_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
         return -RT_ERROR;
     }
     wiz_net_info.dhcp = NETINFO_STATIC;
@@ -357,7 +367,6 @@ static int wiz_network_init(void)
 
     /* set static WIZnet network information */
     ctlnetwork(CN_SET_NETINFO, (void*) &wiz_net_info);
-    ctlnetwork(CN_GET_NETINFO, (void*) &wiz_net_info);
 
 #ifdef WIZ_USING_DHCP
     /* alloc IP address through DHCP */
@@ -367,10 +376,17 @@ static int wiz_network_init(void)
         if (result != RT_EOK)
         {
             LOG_E("WIZnet network initialize failed, DHCP timeout.");
+            netdev_low_level_set_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
+            netdev_low_level_set_link_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
             return result;
         }
     }
 #endif
+
+    netdev = netdev_get_by_name(wiz_netdev_name);
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    wiz_netdev_info_update(netdev);
 
     return RT_EOK;
 }
@@ -399,43 +415,6 @@ static int wiz_socket_init(void)
     return RT_EOK;
 }
 
-int wiz_ifconfig(void)
-{
-#define WIZ_ID_LEN           6
-#define WIZ_MAC_LEN          6
-
-    uint8_t interfacce[WIZ_ID_LEN];
-    wiz_NetInfo net_info;
-
-    ctlwizchip(CW_GET_ID, (void*) interfacce);
-    ctlnetwork(CN_GET_NETINFO, (void*) &net_info);
-
-    /* display network information */
-    {
-        uint8_t index = 0;
-
-        rt_kprintf("network interface: %s\n", interfacce);
-        rt_kprintf("MTU: %d\n", getSn_MSSR(0));
-        rt_kprintf("MAC: ");
-        for (index = 0; index < WIZ_MAC_LEN; index ++)
-        {
-            rt_kprintf("%02x ", net_info.mac[index]);
-        }
-        rt_kprintf("\n");
-
-        rt_kprintf("ip address: %d.%d.%d.%d\n", net_info.ip[0], net_info.ip[1],
-                net_info.ip[2], net_info.ip[3]);
-        rt_kprintf("gw address: %d.%d.%d.%d\n", net_info.gw[0], net_info.gw[1],
-                net_info.gw[2], net_info.gw[3]);
-        rt_kprintf("net mask  : %d.%d.%d.%d\n", net_info.sn[0], net_info.sn[1],
-                net_info.sn[2], net_info.sn[3]);
-        rt_kprintf("dns server : %d.%d.%d.%d\n", net_info.dns[0], net_info.dns[1],
-                net_info.dns[2], net_info.dns[3]);
-    }
-
-    return RT_EOK;
-}
-
 /* set WIZnet device MAC address */
 int wiz_set_mac(const char *mac)
 {
@@ -459,14 +438,290 @@ int wiz_set_mac(const char *mac)
 }
 
 static void wiz_dns_time_handler(void* arg)
-{    
+{
+    extern void DNS_time_handler(void);
     DNS_time_handler();
+}
+
+static int wiz_netdev_info_update(struct netdev *netdev)
+{
+    wiz_NetInfo net_info;
+
+    ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+    netdev_low_level_set_ipaddr(netdev, (const ip_addr_t *)&net_info.ip);
+    netdev_low_level_set_gw(netdev, (const ip_addr_t *)&net_info.gw);
+    netdev_low_level_set_netmask(netdev, (const ip_addr_t *)&net_info.sn);
+    netdev_low_level_set_dns_server(netdev, 0, (const ip_addr_t *)&net_info.dns);
+    memcpy(netdev->hwaddr, (const void *)&net_info.mac, netdev->hwaddr_len);
+    /* 1 - Static, 2 - DHCP */
+    netdev_low_level_set_dhcp_status(netdev, net_info.dhcp - 1);
+    
+    return RT_EOK;
+}
+
+static int wiz_netdev_set_up(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    return RT_EOK;
+}
+
+static int wiz_netdev_set_down(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_FALSE);
+    return RT_EOK;
+}
+
+static int wiz_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, ip_addr_t *netmask, ip_addr_t *gw)
+{
+    rt_err_t result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(ip_addr || netmask || gw);
+
+    ctlnetwork(CN_GET_NETINFO, (void *)&wiz_net_info);
+
+    if (ip_addr)
+        rt_memcpy(wiz_net_info.ip, &ip_addr->addr, sizeof(wiz_net_info.ip));
+
+    if (netmask)
+        rt_memcpy(wiz_net_info.sn, &netmask->addr, sizeof(wiz_net_info.sn));
+
+    if (gw)
+        rt_memcpy(wiz_net_info.gw, &gw->addr, sizeof(wiz_net_info.gw));
+
+    if (ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info) == RT_EOK)
+    {
+        if (ip_addr)
+            netdev_low_level_set_ipaddr(netdev, ip_addr);
+
+        if (netmask)
+            netdev_low_level_set_netmask(netdev, netmask);
+
+        if (gw)
+            netdev_low_level_set_gw(netdev, gw);
+
+        result = RT_EOK;
+    }
+    else
+    {
+        LOG_E("%s set addr info failed!", wiz_netdev_name);
+        result = -RT_ERROR;
+    }
+
+    return result;
+}
+
+static int wiz_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+{
+    rt_err_t result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    ctlnetwork(CN_GET_NETINFO, (void *)&wiz_net_info);
+
+    rt_memcpy(wiz_net_info.dns, &dns_server->addr, sizeof(wiz_net_info.dns));
+
+    if (ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info) == RT_EOK)
+    {
+        netdev_low_level_set_dns_server(netdev, 0, (const ip_addr_t *)dns_server);
+        result = RT_EOK;
+    }
+    else
+    {
+        LOG_E("%s set dns server failed!", wiz_netdev_name);
+        result = -RT_ERROR;
+    }
+
+    return result;
+}
+
+static int wiz_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
+{
+    rt_err_t result = RT_EOK;
+
+    RT_ASSERT(netdev);
+
+    ctlnetwork(CN_GET_NETINFO, (void *)&wiz_net_info);
+
+    /* 1 - Static, 2 - DHCP */
+    wiz_net_info.dhcp = is_enabled + 1;
+
+    if (ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info) == RT_EOK)
+    {
+        netdev_low_level_set_dhcp_status(netdev, is_enabled);
+        result = RT_EOK;
+    }
+    else
+    {
+        LOG_E("%s set dhcp info failed!", wiz_netdev_name);
+        result = -RT_ERROR;
+    }
+
+    return result;
+}
+
+static int wiz_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    extern int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t times, struct netdev_ping_resp *ping_resp);
+
+    return wiz_ping(netdev, host, data_len, timeout, ping_resp);
+}
+
+void wiz_netdev_netstat(struct netdev *netdev)
+{
+    // TODO
+    return;
+}
+
+const struct netdev_ops wiz_netdev_ops =
+{
+    wiz_netdev_set_up,
+    wiz_netdev_set_down,
+
+    wiz_netdev_set_addr_info,
+    wiz_netdev_set_dns_server,
+    wiz_netdev_set_dhcp,
+
+    wiz_netdev_ping,
+    wiz_netdev_netstat,
+};
+
+static struct netdev *wiz_netdev_add(const char *netdev_name)
+{
+#define ETHERNET_MTU        1472
+#define HWADDR_LEN          6
+    struct netdev *netdev = RT_NULL;
+
+    netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return RT_NULL;
+    }
+
+    netdev->flags = 0;
+    netdev->mtu = ETHERNET_MTU;
+    netdev->ops = &wiz_netdev_ops;
+    netdev->hwaddr_len = HWADDR_LEN;
+
+#ifdef PKG_USING_WIZNET
+    extern int sal_wiz_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_wiz_netdev_set_pf_info(netdev);
+#endif
+
+    netdev_register(netdev, netdev_name, RT_NULL);
+
+    return netdev;
+}
+
+#ifdef WIZ_USING_DHCP
+static rt_err_t Wiz_dhcp_restart(void)
+{
+#define WIZ_RESTART_DHCP_SOCKET 7
+#define WIZ_DHCP_RET 5
+
+    uint8_t dhcp_times = 0;
+    uint32_t dhcp_status = 0;
+    uint8_t data_buffer[1024];
+
+    DHCP_init(WIZ_RESTART_DHCP_SOCKET, data_buffer);
+    while (1)
+    {
+        /* DHCP start, return DHCP_IP_LEASED is success. */
+        dhcp_status = DHCP_run();
+
+        switch (dhcp_status)
+        {
+        case DHCP_IP_ASSIGN:
+        case DHCP_IP_CHANGED:
+        {
+            // TODO: DHCP configure
+            break;
+        }
+        case DHCP_IP_LEASED:
+        {
+            DHCP_stop();
+
+            return RT_EOK;
+        }
+        case DHCP_FAILED:
+        {
+            dhcp_times++;
+            if (dhcp_times > WIZ_DHCP_RETRY)
+            {
+                DHCP_stop();
+                return -RT_ETIMEOUT;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        if (dhcp_status == DHCP_STOPPED)
+            break;
+    }
+
+    return -RT_ERROR;
+}
+#endif /* WIZ_USING_DHCP */
+
+static void wiz_link_status_thread_entry(void *parameter)
+{
+#define WIZ_PHYCFGR_LINK_STATUS 0x01
+
+    uint8_t phycfgr = 0;
+    struct netdev *netdev = RT_NULL;
+
+    netdev = netdev_get_by_name(wiz_netdev_name);
+
+    while (1)
+    {
+        /* Get PHYCFGR data */
+        phycfgr = getPHYCFGR();
+
+        /* If the register contents are different from the struct contents, the struct needs to be updated */
+        if ((phycfgr & WIZ_PHYCFGR_LINK_STATUS) != ((netdev->flags & NETDEV_FLAG_LINK_UP) ? RT_TRUE : RT_FALSE))
+        {
+            if (phycfgr & WIZ_PHYCFGR_LINK_STATUS)
+            {
+#ifdef WIZ_USING_DHCP
+                /* Restart DHCP */
+                if (Wiz_dhcp_restart() == RT_EOK)
+                {
+                    netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                    wiz_netdev_info_update(netdev);
+                    LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
+                }
+                else
+                {
+                    LOG_E("%s netdev dhcp failed!", wiz_netdev_name);
+                }
+#else
+                    netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                    wiz_netdev_info_update(netdev);
+                    LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
+#endif
+            }
+            else
+            {
+                netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                LOG_I("%s netdev link status becomes link down", wiz_netdev_name);
+            }
+        }
+        rt_thread_mdelay(1000);
+    }
 }
 
 /* WIZnet initialize device and network */
 int wiz_init(void)
 {
     int result = RT_EOK;
+    rt_thread_t tid;
 
     if (wiz_init_ok == RT_TRUE)
     {
@@ -487,6 +742,10 @@ int wiz_init(void)
         goto __exit;
     }
 
+    /* Add wiz to the netdev list */
+    ctlwizchip(CW_GET_ID, (void *)wiz_netdev_name);
+    wiz_netdev_add(wiz_netdev_name);
+
     /* WIZnet SPI device reset */
     wiz_reset();
     /* set WIZnet device read/write data callback */
@@ -506,11 +765,15 @@ int wiz_init(void)
     /* WIZnet socket initialize */
     wiz_socket_init();
 
-    /* WIZnet socket register */
-    wiz_inet_init();
-    
     dns_tick_timer = rt_timer_create("dns_tick", wiz_dns_time_handler, RT_NULL, 1*RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
     rt_timer_start(dns_tick_timer);
+
+    /* create WIZnet link status Polling thread  */
+    tid = rt_thread_create("wiz_stat", wiz_link_status_thread_entry, RT_NULL, 2048, RT_THREAD_PRIORITY_MAX - 4, 20);
+    if (tid != RT_NULL)
+    {
+        rt_thread_startup(tid);
+    }
 
 __exit:
     if (result == RT_EOK)
@@ -526,7 +789,3 @@ __exit:
     return result;
 }
 INIT_ENV_EXPORT(wiz_init);
-
-#ifdef FINSH_USING_MSH
-MSH_CMD_EXPORT(wiz_ifconfig, WIZnet ifconfig);
-#endif
