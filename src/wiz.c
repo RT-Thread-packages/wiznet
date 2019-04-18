@@ -44,7 +44,7 @@
 #define WIZ_DEFAULT_MAC                "00-E0-81-DC-53-1A"
 
 #define WIZ_ID_LEN                     6
-char wiz_netdev_name[WIZ_ID_LEN];
+static char wiz_netdev_name[WIZ_ID_LEN];
 
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
@@ -352,14 +352,20 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
 static int wiz_network_init(void)
 {
     struct netdev * netdev;
-
+    netdev = netdev_get_by_name(wiz_netdev_name);
+    if (netdev == RT_NULL)
+    {
+        LOG_E("don`t find device(%s)", wiz_netdev_name);
+        return -RT_ERROR;
+    }
+    
 #ifndef WIZ_USING_DHCP
     if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
             wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
                 wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
     {
-        netdev_low_level_set_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
-        netdev_low_level_set_link_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
+        netdev_low_level_set_status(netdev, RT_FALSE);
+        netdev_low_level_set_link_status(netdev, RT_FALSE);
         return -RT_ERROR;
     }
     wiz_net_info.dhcp = NETINFO_STATIC;
@@ -376,14 +382,13 @@ static int wiz_network_init(void)
         if (result != RT_EOK)
         {
             LOG_E("WIZnet network initialize failed, DHCP timeout.");
-            netdev_low_level_set_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
-            netdev_low_level_set_link_status(netdev_get_by_name(wiz_netdev_name), RT_FALSE);
+            netdev_low_level_set_status(netdev, RT_FALSE);
+            netdev_low_level_set_link_status(netdev, RT_FALSE);
             return result;
         }
     }
 #endif
 
-    netdev = netdev_get_by_name(wiz_netdev_name);
     netdev_low_level_set_status(netdev, RT_TRUE);
     netdev_low_level_set_link_status(netdev, RT_TRUE);
     wiz_netdev_info_update(netdev);
@@ -678,7 +683,12 @@ static void wiz_link_status_thread_entry(void *parameter)
     struct netdev *netdev = RT_NULL;
 
     netdev = netdev_get_by_name(wiz_netdev_name);
-
+    if (netdev == RT_NULL)
+    {
+        LOG_E("don`t find device(%s)", wiz_netdev_name);
+        return;
+    }
+    
     while (1)
     {
         /* Get PHYCFGR data */
