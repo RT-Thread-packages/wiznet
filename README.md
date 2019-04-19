@@ -37,7 +37,7 @@ WIZnet 软件包遵循 Apache-2.0 许可，详见 LICENSE 文件。
 
 ### 1.3 依赖
 
-- RT-Thread 4.0.0+
+- RT-Thread 4.0.1+
 - SAL 组件
 - netdev 组件
 - SPI 驱动：WIZnet 设备使用  SPI 进行数据通讯，需要系统 SPI 驱动框架支持；
