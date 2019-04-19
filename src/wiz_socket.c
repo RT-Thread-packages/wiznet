@@ -443,8 +443,14 @@ int wiz_shutdown(int socket, int how)
 static int socketaddr_to_ipaddr_port(const struct sockaddr *sockaddr, ip_addr_t *addr, uint16_t *port)
 {
     const struct sockaddr_in* sin = (const struct sockaddr_in*) (const void *) sockaddr;
-
+    
+#if NETDEV_IPV4 && NETDEV_IPV6
     (*addr).u_addr.ip4.addr = sin->sin_addr.s_addr;
+#elif NETDEV_IPV4
+    (*addr).addr = sin->sin_addr.s_addr;
+#elif NETDEV_IPV6
+    LOG_E("not support IPV6.");
+#endif /* NETDEV_IPV4 && NETDEV_IPV6 */
 
     *port = (uint16_t) HTONS_PORT(sin->sin_port);
 
@@ -643,10 +649,15 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
         return -1;
     }
-
-    /* set WIZNnet socket receive timeout */
-    if ((timeout = sock->recv_timeout) == 0)
+    
+    /* non-blocking sockets receive data */
+    if (flags & MSG_DONTWAIT)
     {
+        timeout = RT_WAITING_NO;
+    }
+    else if ((timeout = sock->recv_timeout) == 0)
+    {
+        /* set WIZNnet socket receive timeout */
         timeout = RT_WAITING_FOREVER;
     }
 
@@ -658,7 +669,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
         uint16_t recvsize = getSn_RX_RSR(socket);
         /* receive last transmission of remaining data */
         if(recvsize>0)
-        {    
+        {
             rt_mutex_take(sock->recv_lock, RT_WAITING_FOREVER);
             recv_len = wizchip_recv(socket, mem, len);
             if (recv_len > 0)
@@ -686,9 +697,13 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             /* wait the receive semaphore */
             if (rt_sem_take(sock->recv_notice, timeout) < 0)
             {
-                LOG_E("WIZnet socket (%d) receive timeout (%d)!", socket, timeout);
-                errno = EAGAIN;
                 result = -1;
+                /* blocking mode will prints an error and non-blocking mode exits directly */
+                if ((flags & MSG_DONTWAIT) == 0)
+                {
+                    LOG_E("WIZnet socket (%d) receive timeout (%d)!", socket, timeout);
+                    errno = EAGAIN;
+                }
                 goto __exit;
             }
             else
@@ -745,8 +760,12 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
 
         if (rt_sem_take(sock->recv_notice, timeout) < 0)
         {
-            LOG_E("WIZnet socket (%d) receive timeout (%d)!", socket, timeout);
             result = -1;
+            /* blocking mode will prints an error and non-blocking mode exits directly */
+            if ((flags & MSG_DONTWAIT) == 0)
+            {
+                LOG_E("WIZnet socket (%d) receive timeout (%d)!", socket, timeout);
+            }
             goto __exit;
         }
         else
@@ -1036,7 +1055,13 @@ struct hostent *wiz_gethostbyname(const char *name)
         rt_strncpy(ipstr, name, rt_strlen(name));
     }
 
+#if NETDEV_IPV4 && NETDEV_IPV6
     addr.u_addr.ip4.addr = ipstr_to_u32(ipstr);
+#elif NETDEV_IPV4
+    addr.addr = ipstr_to_u32(ipstr);
+#elif NETDEV_IPV6
+    LOG_E("not support IPV6.");
+#endif /* NETDEV_IPV4 && NETDEV_IPV6 */
 
     /* fill hostent structure */
     s_hostent_addr = addr;
@@ -1168,11 +1193,17 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 rt_strncpy(ipstr, nodename, rt_strlen(nodename));
             }
 
+        #if NETDEV_IPV4 && NETDEV_IPV6 
             addr.type = IPADDR_TYPE_V4;
-            if ((addr.u_addr.ip4.addr = ipstr_to_u32(ipstr)) == 0)
+            if ((addr.u_addr.ip4.addr = ipstr_to_u32(ip_str)) == 0)
             {
                 return EAI_FAIL;
             }
+        #elif NETDEV_IPV4
+            addr.addr = ipstr_to_u32(ipstr);
+        #elif NETDEV_IPV6
+            LOG_E("not support IPV6."); 
+        #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
         }
     }
     else
@@ -1204,7 +1235,13 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
     sa = (struct sockaddr_storage *) (void *) ((uint8_t *) ai + sizeof(struct addrinfo));
     struct sockaddr_in *sa4 = (struct sockaddr_in *) sa;
     /* set up sockaddr */
+#if NETDEV_IPV4 && NETDEV_IPV6
     sa4->sin_addr.s_addr = addr.u_addr.ip4.addr;
+#elif NETDEV_IPV4
+    sa4->sin_addr.s_addr = addr.addr;
+#elif NETDEV_IPV6
+    LOG_E("not support IPV6."); 
+#endif /* NETDEV_IPV4 && NETDEV_IPV6 */
     sa4->sin_family = AF_INET;
     sa4->sin_len = sizeof(struct sockaddr_in);
     sa4->sin_port = htons((uint16_t )port_nr);

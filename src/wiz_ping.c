@@ -16,6 +16,9 @@
 #include <wiz_socket.h>
 #include <W5500/w5500.h>
 
+#include <sal.h>
+#include <netdev.h>
+
 #define Sn_PROTO(ch)         (0x001408 + (ch<<5))
 
 #define WIZ_PING_DATA_LEN    32
@@ -175,25 +178,29 @@ static int wiz_ping_reply(int socket)
     return recv_len - WIZ_PING_HEAD_LEN;
 }
 
-int wiz_ping(char* target_name, uint32_t times)
+int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t times, struct netdev_ping_resp *ping_resp)
 {
-    int result, socket;
-    uint32_t send_times;
-    struct hostent *host;
+    int result = RT_EOK, socket;
     struct sockaddr_in server_addr;
     struct timeval timeout;
     struct in_addr ina;
+    struct hostent *hostent;
+    rt_tick_t recv_start_tick;
+    struct sal_proto_family *pf = (struct sal_proto_family *) netdev->sal_user_data;
+
+    /* get network interface socket operations */
+    if (pf == RT_NULL || pf->skt_ops == RT_NULL)
+    {
+        result = -RT_FALSE;
+    }
+  
+    hostent = (struct hostent *) pf->netdb_ops->gethostbyname(host);
+    if (hostent == RT_NULL)
+    {
+        result = -RT_FALSE;
+    }
 
     socket = -1;
-    send_times = 0;
-
-    /* domain name resolution */
-    host = wiz_gethostbyname(target_name);
-    if (host == RT_NULL)
-    {
-        rt_kprintf("wiz_ping: unknown host %s\n", target_name);
-        return -1;
-    }
 
     socket = wiz_socket(AF_WIZ, SOCK_RAW, 0);
     if (socket < 0)
@@ -207,8 +214,8 @@ int wiz_ping(char* target_name, uint32_t times)
     /* Check socket register */
     while(getSn_SR(socket) != SOCK_IPRAW);
 
-    timeout.tv_sec = WIZ_PING_TIMEOUT;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = times / RT_TICK_PER_SECOND;
+    timeout.tv_usec = (times % RT_TICK_PER_SECOND) * 1000 / RT_TICK_PER_SECOND;
 
     /* set receive and send timeout option */
     wiz_setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout,
@@ -218,7 +225,7 @@ int wiz_ping(char* target_name, uint32_t times)
 
     server_addr.sin_family = AF_WIZ;
     server_addr.sin_port = htons(WIZ_PING_PORT);
-    server_addr.sin_addr = *((struct in_addr *) host->h_addr);
+    server_addr.sin_addr = *((struct in_addr *)hostent->h_addr);
     rt_memset(&(server_addr.sin_zero), 0, sizeof(server_addr.sin_zero));
     rt_memcpy(&ina, &server_addr.sin_addr, sizeof(ina));
 
@@ -228,61 +235,21 @@ int wiz_ping(char* target_name, uint32_t times)
         return -1;
     }
 
-    while (1)
+    if ((result = wiz_ping_request(socket)) > 0)
     {
-        if ((result = wiz_ping_request(socket)) > 0)
-        {
-            rt_tick_t recv_start_tick;
+        recv_start_tick = rt_tick_get();
+        result = wiz_ping_reply(socket);
+    }
 
-            recv_start_tick = rt_tick_get();
-            if ((result = wiz_ping_reply(socket)) >= 0)
-            {
-                rt_kprintf("%d bytes from %s icmp_seq=%d ttl=%d time=%d ticks\n", result, inet_ntoa(ina), send_times,
-                        getSn_TTL(socket), rt_tick_get() - recv_start_tick);
-            }
-            else
-            {
-                rt_kprintf("wiz_ping: receive data from %s failed(%d).\n", inet_ntoa(ina), result);
-            }
-
-            rt_thread_mdelay(100);
-        }
-        else
-        {
-            rt_kprintf("wiz_ping: send data to %s failed(%d).\n", inet_ntoa(ina), result);
-        }
-
-        send_times++;
-        if (send_times >= times)
-        {
-            /* send ping times reached, stop */
-            break;
-        }
-
-        rt_thread_mdelay(WIZ_PING_DELAY); /* take a delay */
+    if(result > 0)
+    {
+        ping_resp->ip_addr.addr = ((struct in_addr *)hostent->h_addr)->s_addr;
+        ping_resp->ticks = rt_tick_get() - recv_start_tick;
+        ping_resp->data_len = data_len;
+        ping_resp->ttl = getSn_TTL(socket);
     }
 
     wiz_closesocket(socket);
 
-    return 0;
+    return result;
 }
-
-
-int cmd_wiz_ping(int argc, char **argv)
-{
-    if (argc == 1)
-    {
-        rt_kprintf("Please input: wiz_ping <host address>\n");
-        return -1;
-    }
-    else
-    {
-        wiz_ping(argv[1], 4);
-    }
-
-    return 0;
-}
-
-#ifdef FINSH_USING_MSH
-MSH_CMD_EXPORT_ALIAS(cmd_wiz_ping, wiz_ping, WIZnet ping network host);
-#endif
