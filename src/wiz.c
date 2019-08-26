@@ -20,6 +20,7 @@
 #include <DHCP/wizchip_dhcp.h>
 #endif
 
+#include <arpa/inet.h>
 #include <netdev.h>
 
 #if !defined(WIZ_SPI_DEVICE) || !defined(WIZ_RST_PIN) || !defined(WIZ_IRQ_PIN)
@@ -358,7 +359,7 @@ static int wiz_network_init(void)
         LOG_E("don`t find device(%s)", wiz_netdev_name);
         return -RT_ERROR;
     }
-    
+
 #ifndef WIZ_USING_DHCP
     if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
             wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
@@ -460,7 +461,7 @@ static int wiz_netdev_info_update(struct netdev *netdev)
     memcpy(netdev->hwaddr, (const void *)&net_info.mac, netdev->hwaddr_len);
     /* 1 - Static, 2 - DHCP */
     netdev_low_level_set_dhcp_status(netdev, net_info.dhcp - 1);
-    
+
     return RT_EOK;
 }
 
@@ -516,7 +517,7 @@ static int wiz_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, i
     return result;
 }
 
-static int wiz_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+static int wiz_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
     rt_err_t result = RT_EOK;
 
@@ -529,7 +530,7 @@ static int wiz_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_serve
 
     if (ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info) == RT_EOK)
     {
-        netdev_low_level_set_dns_server(netdev, 0, (const ip_addr_t *)dns_server);
+        netdev_low_level_set_dns_server(netdev, dns_num, (const ip_addr_t *)dns_server);
         result = RT_EOK;
     }
     else
@@ -550,7 +551,7 @@ static int wiz_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     ctlnetwork(CN_GET_NETINFO, (void *)&wiz_net_info);
 
     /* 1 - Static, 2 - DHCP */
-    wiz_net_info.dhcp = is_enabled + 1;
+    wiz_net_info.dhcp = (dhcp_mode)(is_enabled + 1);
 
     if (ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info) == RT_EOK)
     {
@@ -688,7 +689,7 @@ static void wiz_link_status_thread_entry(void *parameter)
         LOG_E("don`t find device(%s)", wiz_netdev_name);
         return;
     }
-    
+
     while (1)
     {
         /* Get PHYCFGR data */
