@@ -245,7 +245,7 @@ static int wiz_network_dhcp(void)
     /* register to assign IP address and conflict callback */
     reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
 
-    dhcp_timer = rt_timer_create("w_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
     if (dhcp_timer == RT_NULL)
     {
         return -RT_ERROR;
@@ -349,6 +349,8 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
     return RT_EOK;
 }
 
+static rt_err_t wiz_dhcp_restart(void);
+
 /* initialize WIZnet network configures */
 static int wiz_network_init(void)
 {
@@ -379,6 +381,8 @@ static int wiz_network_init(void)
     /* alloc IP address through DHCP */
     {
         int result = RT_EOK;
+        rt_timer_t lsd_timer;
+
         result = wiz_network_dhcp();
         if (result != RT_EOK)
         {
@@ -386,6 +390,14 @@ static int wiz_network_init(void)
             netdev_low_level_set_status(netdev, RT_FALSE);
             netdev_low_level_set_link_status(netdev, RT_FALSE);
             return result;
+        }
+
+        /* create and start leased IP address timer */
+        lsd_timer = rt_timer_create("wiz_lsd", (void (*)(void *parameter))wiz_dhcp_restart, RT_NULL,
+                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+        if (lsd_timer)
+        {
+            rt_timer_start(lsd_timer);
         }
     }
 #endif
@@ -626,7 +638,7 @@ static struct netdev *wiz_netdev_add(const char *netdev_name)
 }
 
 #ifdef WIZ_USING_DHCP
-static rt_err_t Wiz_dhcp_restart(void)
+static rt_err_t wiz_dhcp_restart(void)
 {
 #define WIZ_RESTART_DHCP_SOCKET 7
 #define WIZ_DHCP_RET 5
@@ -702,7 +714,7 @@ static void wiz_link_status_thread_entry(void *parameter)
             {
 #ifdef WIZ_USING_DHCP
                 /* Restart DHCP */
-                if (Wiz_dhcp_restart() == RT_EOK)
+                if (wiz_dhcp_restart() == RT_EOK)
                 {
                     netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
                     wiz_netdev_info_update(netdev);
