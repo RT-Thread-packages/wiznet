@@ -66,7 +66,7 @@ static const struct sal_socket_ops wiz_socket_ops =
 {
     wiz_socket,
     wiz_closesocket,
-    NULL,
+    wiz_bind,
     NULL,
     wiz_connect,
     NULL,
@@ -83,7 +83,7 @@ static const struct sal_socket_ops wiz_socket_ops =
 #endif /* SAL_USING_POSIX */
 };
 
-static const struct sal_netdb_ops wiz_netdb_ops = 
+static const struct sal_netdb_ops wiz_netdb_ops =
 {
     wiz_gethostbyname,
     NULL,

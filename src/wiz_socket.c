@@ -439,11 +439,26 @@ int wiz_shutdown(int socket, int how)
     return free_socket(sock);
 }
 
+int wiz_bind(int socket, const struct sockaddr *name, socklen_t namelen)
+{
+    RT_ASSERT(name);
+
+    /* Only support signed w5500 network interface device in wiznet,
+       and the bind function is implemented in the SAL component,
+       need to define "wiz_bind" function and register it. */
+    if (wiz_get_socket(socket) == RT_NULL)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 /* get IP address and port by socketaddr structure information */
 static int socketaddr_to_ipaddr_port(const struct sockaddr *sockaddr, ip_addr_t *addr, uint16_t *port)
 {
     const struct sockaddr_in* sin = (const struct sockaddr_in*) (const void *) sockaddr;
-    
+
 #if NETDEV_IPV4 && NETDEV_IPV6
     (*addr).u_addr.ip4.addr = sin->sin_addr.s_addr;
 #elif NETDEV_IPV4
@@ -649,7 +664,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
         return -1;
     }
-    
+
     /* non-blocking sockets receive data */
     if (flags & MSG_DONTWAIT)
     {
@@ -679,7 +694,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             }
             rt_mutex_release(sock->recv_lock);
         }
-        
+
         if (socket_state == SOCK_CLOSED)
         {
             return 0;
@@ -1193,7 +1208,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 rt_strncpy(ipstr, nodename, rt_strlen(nodename));
             }
 
-        #if NETDEV_IPV4 && NETDEV_IPV6 
+        #if NETDEV_IPV4 && NETDEV_IPV6
             addr.type = IPADDR_TYPE_V4;
             if ((addr.u_addr.ip4.addr = ipstr_to_u32(ip_str)) == 0)
             {
@@ -1202,7 +1217,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
         #elif NETDEV_IPV4
             addr.addr = ipstr_to_u32(ipstr);
         #elif NETDEV_IPV6
-            LOG_E("not support IPV6."); 
+            LOG_E("not support IPV6.");
         #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
         }
     }
@@ -1240,7 +1255,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
 #elif NETDEV_IPV4
     sa4->sin_addr.s_addr = addr.addr;
 #elif NETDEV_IPV6
-    LOG_E("not support IPV6."); 
+    LOG_E("not support IPV6.");
 #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
     sa4->sin_family = AF_INET;
     sa4->sin_len = sizeof(struct sockaddr_in);
