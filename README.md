@@ -145,7 +145,7 @@ msh />wiz_ping baidu.com
 
   出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备类型不正确，可以在添加 WIZnet 软件包之前在 FinSH 中使用 `list_device` 查看当前可用 SPI 设备名称，如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中添加 SPI 设备，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
 
-- WIZnet 不支持 server 模式。
+- WIZnet 软件包最新版本已支持作为 server 服务器模式（V1.1.0 版本之前不支持）。
 
 
 ## 5、注意事项
@@ -153,8 +153,6 @@ msh />wiz_ping baidu.com
 - 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号；
 
 - 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
-
-
 
 ## 6、联系方式 & 感谢
 

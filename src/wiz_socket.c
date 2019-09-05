@@ -43,24 +43,28 @@
 #endif
 
 extern rt_bool_t wiz_init_ok;
-#define WIZ_INIT_STATUS_CHECK                                   \
-    if (wiz_init_ok == RT_FALSE ||                              \
-            (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)  \
-    {                                                           \
-        return -1;                                              \
-    }                                                           \
+#define WIZ_INIT_STATUS_CHECK                              \
+    if (wiz_init_ok == RT_FALSE ||                         \
+        (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON) \
+    {                                                      \
+        return -1;                                         \
+    }                                                      \
 
 #define HTONS_PORT(x)                  ((((x) & 0x00ffUL) << 8) | (((x) & 0xff00UL) >> 8))
 #define NIPQUAD(addr, index)           ((unsigned char *)&addr)[index]
 
-typedef enum {
+#define WIZ_MAX(x , y)                 (((x) > (y)) ? (x) : (y))
+#define WIZ_MIN(x , y)                 (((x) < (y)) ? (x) : (y))
+
+typedef enum
+{
     WIZ_EVENT_SEND,
     WIZ_EVENT_RECV,
     WIZ_EVENT_ERROR,
 } wiz_event_t;
 
 /* the global array of available sockets */
-static struct wiz_socket  sockets[WIZ_SOCKETS_NUM];
+static struct wiz_socket sockets[WIZ_SOCKETS_NUM] = {0};
 static uint16_t wiz_port = WIZ_DEF_LOCAL_PORT;
 
 struct wiz_socket *wiz_get_socket(int socket)
@@ -90,7 +94,7 @@ static void wiz_do_event_changes(struct wiz_socket *sock, wiz_event_t event, rt_
             sock->sendevent = 1;
 
 #ifdef SAL_USING_POSIX
-            rt_wqueue_wakeup(&sock->wait_head, (void*) POLLOUT);
+            rt_wqueue_wakeup(&sock->wait_head, (void *)POLLOUT);
 #endif
         }
         else if (sock->sendevent)
@@ -106,7 +110,7 @@ static void wiz_do_event_changes(struct wiz_socket *sock, wiz_event_t event, rt_
             sock->rcvevent++;
 
 #ifdef SAL_USING_POSIX
-            rt_wqueue_wakeup(&sock->wait_head, (void*) POLLIN);
+            rt_wqueue_wakeup(&sock->wait_head, (void *)POLLIN);
 #endif
         }
         else if (sock->rcvevent)
@@ -122,7 +126,7 @@ static void wiz_do_event_changes(struct wiz_socket *sock, wiz_event_t event, rt_
             sock->errevent++;
 
 #ifdef SAL_USING_POSIX
-            rt_wqueue_wakeup(&sock->wait_head, (void*) POLLERR);
+            rt_wqueue_wakeup(&sock->wait_head, (void *)POLLERR);
 #endif
         }
         else if (sock->errevent)
@@ -160,10 +164,9 @@ static void wiz_do_event_clean(struct wiz_socket *sock, wiz_event_t event)
     }
 }
 
-
 int wiz_recv_notice_cb(int socket)
 {
-    struct wiz_socket *sock;
+    struct wiz_socket *sock = RT_NULL;
 
     sock = wiz_get_socket(socket);
     if (sock == RT_NULL)
@@ -180,7 +183,7 @@ int wiz_recv_notice_cb(int socket)
 
 int wiz_closed_notice_cb(int socket)
 {
-    struct wiz_socket *sock;
+    struct wiz_socket *sock = RT_NULL;
     uint8_t socket_state = 0;
 
     sock = wiz_get_socket(socket);
@@ -213,9 +216,9 @@ int wiz_closed_notice_cb(int socket)
 static struct wiz_socket *alloc_socket(void)
 {
     static rt_mutex_t wiz_slock = RT_NULL;
-    struct wiz_socket *sock;
-    char name[RT_NAME_MAX];
-    int idx;
+    struct wiz_socket *sock = RT_NULL;
+    char name[RT_NAME_MAX] = {0};
+    int idx = 0;
 
     if (wiz_slock == RT_NULL)
     {
@@ -242,13 +245,16 @@ static struct wiz_socket *alloc_socket(void)
     sock = &(sockets[idx]);
     sock->magic = WIZ_SOCKET_MAGIC;
     sock->socket = idx;
+    sock->port = 0;
     sock->state = SOCK_CLOSED;
-    sock->server_addr = RT_NULL;
+    sock->remote_addr = RT_NULL;
     sock->recv_timeout = 0;
     sock->send_timeout = 0;
     sock->rcvevent = 0;
     sock->sendevent = 0;
     sock->errevent = 0;
+    /* for server socket */
+    sock->svr_info = RT_NULL;
 
     rt_snprintf(name, RT_NAME_MAX, "%s%d", "wiz_sr", idx);
     /* create WIZnet socket receive mailbox */
@@ -274,9 +280,9 @@ __err:
 
 int wiz_socket(int domain, int type, int protocol)
 {
-    struct wiz_socket *sock;
-    uint8_t socket_type;
-    uint8_t socket_state;
+    struct wiz_socket *sock = RT_NULL;
+    uint8_t socket_type = 0;
+    uint8_t socket_state = 0;
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
@@ -319,25 +325,27 @@ int wiz_socket(int domain, int type, int protocol)
     socket_state = getSn_SR(sock->socket);
     if (socket_state == SOCK_CLOSED)
     {
-        switch(sock->type)
+        switch (sock->type)
         {
         case Sn_MR_TCP:
-            if (wizchip_socket(sock->socket, sock->type, wiz_port++, Sn_MR_ND) != sock->socket)
+            if (wizchip_socket(sock->socket, sock->type, wiz_port, Sn_MR_ND) != sock->socket)
             {
                 LOG_E("WIZnet TCP socket(%d) create failed!", sock->socket);
                 rt_memset(sock, 0x00, sizeof(struct wiz_socket));
                 return -1;
             }
+            sock->port = wiz_port++;
             break;
 
         case Sn_MR_UDP:
         case Sn_MR_IPRAW:
-            if (wizchip_socket(sock->socket, sock->type, wiz_port++, 0) != sock->socket)
+            if (wizchip_socket(sock->socket, sock->type, wiz_port, 0) != sock->socket)
             {
                 LOG_E("WIZnet UDP socket(%d) create failed!", sock->socket);
                 rt_memset(sock, 0x00, sizeof(struct wiz_socket));
                 return -1;
             }
+            sock->port = wiz_port++;
             break;
 
         default:
@@ -355,6 +363,94 @@ int wiz_socket(int domain, int type, int protocol)
     return sock->socket;
 }
 
+/* free server information and close all client socket in server clnt_list */
+static int free_svr_info(struct wiz_socket *sock)
+{
+    struct wiz_svr_info *svr_info = sock->svr_info;
+    struct wiz_clnt_info *clnt_info = RT_NULL;
+    rt_slist_t *node = RT_NULL;
+    rt_base_t level;
+
+    level = rt_hw_interrupt_disable();
+    /* close all client socket and free client information object */
+    rt_slist_for_each(node, &svr_info->clnt_list)
+    {
+        clnt_info = rt_slist_entry(node, struct wiz_clnt_info, list);
+        if (clnt_info)
+        {
+            rt_slist_remove(&svr_info->clnt_list, node);
+            wiz_closesocket(clnt_info->socket);
+            rt_free(clnt_info);
+        }
+    }
+    rt_hw_interrupt_enable(level);
+
+    if (svr_info->conn_tmr)
+    {
+        rt_timer_stop(svr_info->conn_tmr);
+        rt_timer_delete(svr_info->conn_tmr);
+    }
+
+    if (svr_info->conn_mbox)
+    {
+        rt_mb_delete(svr_info->conn_mbox);
+    }
+
+    if (svr_info)
+    {
+        rt_free(svr_info);
+        sock->svr_info = RT_NULL;
+    }
+
+    return 0;
+}
+
+/* remove client information from server socket clnt_list */
+static int remove_clnt_list(struct wiz_socket *sock)
+{
+    struct wiz_socket *svr_sock = RT_NULL;
+    struct wiz_svr_info *svr_info = RT_NULL;
+    int index = 0;
+
+    for (index = 0; index < WIZ_SOCKETS_NUM; index++)
+    {
+        svr_sock = wiz_get_socket(index);
+        if (svr_sock == RT_NULL)
+        {
+            continue;
+        }
+        svr_info = svr_sock->svr_info;
+
+        /* find server socket by bind port */
+        if (svr_sock->svr_info && svr_sock->port == sock->port)
+        {
+            struct wiz_clnt_info *clnt_info = RT_NULL;
+            rt_slist_t *node = RT_NULL;
+            rt_base_t level;
+
+            level = rt_hw_interrupt_disable();
+            /* find client socket information in server clnt_list */
+            rt_slist_for_each(node, &svr_info->clnt_list)
+            {
+                clnt_info = rt_slist_entry(node, struct wiz_clnt_info, list);
+                if (clnt_info && clnt_info->socket == sock->socket)
+                {
+                    rt_slist_remove(&svr_info->clnt_list, node);
+                    rt_hw_interrupt_enable(level);
+
+                    /* add server socket listen number */
+                    svr_info->backlog++;
+                    rt_free(clnt_info);
+                    return 0;
+                }
+            }
+            rt_hw_interrupt_enable(level);
+        }
+    }
+
+    return 0;
+}
+
 static int free_socket(struct wiz_socket *sock)
 {
     if (sock->recv_notice)
@@ -367,9 +463,20 @@ static int free_socket(struct wiz_socket *sock)
         rt_mutex_delete(sock->recv_lock);
     }
 
-    if (sock->server_addr)
+    if (sock->remote_addr)
     {
-        rt_free(sock->server_addr);
+        rt_free(sock->remote_addr);
+    }
+
+    if (sock->svr_info)
+    {
+        /* is server socket, free server information and close all client socket on clnt_list */
+        free_svr_info(sock);
+    }
+    else
+    {
+        /* is client socket, remove client socket list from server socket */
+        remove_clnt_list(sock);
     }
 
     rt_memset(sock, 0x00, sizeof(struct wiz_socket));
@@ -379,14 +486,14 @@ static int free_socket(struct wiz_socket *sock)
 
 int wiz_closesocket(int socket)
 {
-    struct wiz_socket *sock;
-    uint8_t socket_state;
+    struct wiz_socket *sock = RT_NULL;
+    uint8_t socket_state = 0;
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
 
     sock = wiz_get_socket(socket);
-    if(sock == RT_NULL)
+    if (sock == RT_NULL)
     {
         return -1;
     }
@@ -410,8 +517,8 @@ int wiz_closesocket(int socket)
 
 int wiz_shutdown(int socket, int how)
 {
-    struct wiz_socket *sock;
-    uint8_t socket_state;
+    struct wiz_socket *sock = RT_NULL;
+    uint8_t socket_state = 0;
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
@@ -439,16 +546,191 @@ int wiz_shutdown(int socket, int how)
     return free_socket(sock);
 }
 
-int wiz_bind(int socket, const struct sockaddr *name, socklen_t namelen)
+static  struct wiz_clnt_info *wiz_conn_clnt_info_get(struct wiz_socket *svr_sock)
 {
-    RT_ASSERT(name);
+    rt_base_t level;
+    rt_slist_t *node = RT_NULL;
+    struct wiz_clnt_info *clnt_info = RT_NULL;
+    struct wiz_svr_info *svr_info = svr_sock->svr_info;
 
-    /* Only support signed w5500 network interface device in wiznet,
-       and the bind function is implemented in the SAL component,
-       need to define "wiz_bind" function and register it. */
-    if (wiz_get_socket(socket) == RT_NULL)
+    level = rt_hw_interrupt_disable();
+
+    rt_slist_for_each(node, &svr_info->clnt_list)
+    {
+        clnt_info = rt_slist_entry(node, struct wiz_clnt_info, list);
+        if (clnt_info->state == SOCK_LISTEN || clnt_info->state == SOCK_INIT)
+        {
+            rt_hw_interrupt_enable(level);
+            return clnt_info;
+        }
+    }
+
+    rt_hw_interrupt_enable(level);
+    return RT_NULL;
+}
+
+static void wiz_timer_entry(void *parameter)
+{
+    struct wiz_socket *svr_sock = RT_NULL;
+    struct wiz_socket *clnt_sock = RT_NULL;
+    struct wiz_clnt_info *clnt_info = RT_NULL;
+    int clnt_socket = -1;
+    int bind_port = 0;
+    uint8_t status = 0;
+
+    svr_sock = (struct wiz_socket *)parameter;
+    bind_port = svr_sock->port;
+
+    /* check server socket listen status */
+    if (svr_sock->state != SOCK_LISTEN)
+    {
+        return;
+    }
+
+    /* allocate and initialize a new client socket */
+    clnt_info = wiz_conn_clnt_info_get(svr_sock);
+    if (clnt_info == RT_NULL)
+    {
+        /* check server listen backlog number */
+        if (svr_sock->svr_info->backlog < 0)
+        {
+            goto __error;
+        }
+
+        clnt_sock = alloc_socket();
+        if (clnt_sock == RT_NULL)
+        {
+            goto __error;
+        }
+        clnt_sock->type = Sn_MR_TCP;
+
+#ifdef SAL_USING_POSIX
+        rt_wqueue_init(&clnt_sock->wait_head);
+#endif
+        if (wizchip_socket(clnt_sock->socket, clnt_sock->type, bind_port, 0) != clnt_sock->socket)
+        {
+            goto __error;
+        }
+        clnt_sock->state = SOCK_INIT;
+        clnt_sock->port = svr_sock->port;
+        clnt_socket = clnt_sock->socket;
+
+        /* create client information and add client to server clnt_list */
+        clnt_info = rt_calloc(1, sizeof(struct wiz_clnt_info));
+        if (clnt_info == RT_NULL)
+        {
+            LOG_E("no memory for clinet information.");
+            goto __error;
+        }
+        clnt_info->socket = clnt_sock->socket;
+        clnt_info->state = clnt_sock->state;
+        rt_slist_init(&clnt_info->list);
+        rt_slist_append(&svr_sock->svr_info->clnt_list, &clnt_info->list);
+    }
+    else
+    {
+        /* get client socket structure by socket descriptor */
+        clnt_sock = wiz_get_socket(clnt_info->socket);
+        if (clnt_sock == RT_NULL)
+        {
+            goto __error;
+        }
+    }
+    clnt_socket = clnt_info->socket;
+
+    status = getSn_SR(clnt_socket);
+    clnt_info->state = status;
+    switch (status)
+    {
+    case SOCK_INIT:
+        /* listen for open local ports and wait for client connections */
+        if (wizchip_listen(clnt_socket) < 0)
+        {
+            goto __error;
+        }
+        break;
+    case SOCK_ESTABLISHED:
+        /* set server socket to recevice connected status */
+        svr_sock->state = SOCK_SYNRECV;
+        svr_sock->svr_info->backlog--;
+        /* send client socket connect message and events */
+        rt_mb_send(svr_sock->svr_info->conn_mbox, (rt_uint32_t)clnt_sock);
+        wiz_do_event_changes(svr_sock, WIZ_EVENT_RECV, RT_TRUE);
+        break;
+    case SOCK_LISTEN:
+        /* socket input listen mode, wait client connect */
+        break;
+    case SOCK_CLOSE_WAIT:
+    case SOCK_CLOSED:
+    default:
+        goto __error;
+    }
+    return;
+
+__error:
+    rt_mb_send(svr_sock->svr_info->conn_mbox, (rt_uint32_t)clnt_sock);
+    wiz_do_event_changes(svr_sock, WIZ_EVENT_ERROR, RT_TRUE);
+}
+
+int wiz_listen(int socket, int backlog)
+{
+    struct wiz_socket *sock = RT_NULL;
+
+    /* limit the "backlog" parameter to fit in an uint8_t */
+    backlog = WIZ_MIN(WIZ_MAX(backlog, 0), WIZ_SOCKETS_NUM);
+    if (backlog == 0)
+    {
+        LOG_E("not emought socket for server listen.");
+        return -1;
+    }
+
+    sock = wiz_get_socket(socket);
+    if (sock == RT_NULL)
     {
         return -1;
+    }
+
+    /* set server socket status and listen sockets number */
+    sock->state = SOCK_LISTEN;
+
+    /* create connect timer for client connect event notice */
+    if (sock->svr_info == RT_NULL)
+    {
+#define WIZ_MB_NUM 8
+#define WIZ_TIMER_TICK rt_tick_from_millisecond(100)
+
+        char name[RT_NAME_MAX] = {0};
+        static int socket_counts = 0;
+        struct wiz_svr_info *svr_info = RT_NULL;
+
+        sock->svr_info = rt_calloc(1, sizeof(struct wiz_svr_info));
+        if (sock->svr_info == RT_NULL)
+        {
+            return -1;
+        }
+        svr_info = sock->svr_info;
+
+        /* full server infomation */
+        svr_info->backlog = backlog - 1;
+        rt_slist_init(&svr_info->clnt_list);
+
+        /* create client socket connection event mailbox */
+        rt_snprintf(name, RT_NAME_MAX, "wiz_mb%d", socket_counts);
+        svr_info->conn_mbox = rt_mb_create(name, WIZ_MB_NUM, RT_IPC_FLAG_FIFO);
+        if (svr_info->conn_mbox == RT_NULL)
+        {
+            return -1;
+        }
+
+        /* create client socket connect timer */
+        rt_snprintf(name, RT_NAME_MAX, "wiz_tm%d", socket_counts++);
+        svr_info->conn_tmr = rt_timer_create(name, wiz_timer_entry, (void *)sock,
+                                             WIZ_TIMER_TICK, RT_TIMER_FLAG_SOFT_TIMER | RT_TIMER_FLAG_PERIODIC);
+        if (svr_info->conn_tmr == RT_NULL)
+        {
+            return -1;
+        }
+        rt_timer_start(svr_info->conn_tmr);
     }
 
     return 0;
@@ -457,7 +739,7 @@ int wiz_bind(int socket, const struct sockaddr *name, socklen_t namelen)
 /* get IP address and port by socketaddr structure information */
 static int socketaddr_to_ipaddr_port(const struct sockaddr *sockaddr, ip_addr_t *addr, uint16_t *port)
 {
-    const struct sockaddr_in* sin = (const struct sockaddr_in*) (const void *) sockaddr;
+    const struct sockaddr_in *sin = (const struct sockaddr_in *)sockaddr;
 
 #if NETDEV_IPV4 && NETDEV_IPV6
     (*addr).u_addr.ip4.addr = sin->sin_addr.s_addr;
@@ -467,7 +749,7 @@ static int socketaddr_to_ipaddr_port(const struct sockaddr *sockaddr, ip_addr_t 
     LOG_E("not support IPV6.");
 #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
 
-    *port = (uint16_t) HTONS_PORT(sin->sin_port);
+    *port = (uint16_t)HTONS_PORT(sin->sin_port);
 
     return 0;
 }
@@ -475,7 +757,7 @@ static int socketaddr_to_ipaddr_port(const struct sockaddr *sockaddr, ip_addr_t 
 /* ipaddr structure change to IP address */
 static int ipaddr_to_ipstr(const struct sockaddr *sockaddr, uint8_t *ipstr)
 {
-    struct sockaddr_in *sin = (struct sockaddr_in *) sockaddr;
+    struct sockaddr_in *sin = (struct sockaddr_in *)sockaddr;
 
     /* change network ip_addr to ip string  */
     ipstr[0] = NIPQUAD(sin->sin_addr.s_addr, 0);
@@ -486,14 +768,73 @@ static int ipaddr_to_ipstr(const struct sockaddr *sockaddr, uint8_t *ipstr)
     return 0;
 }
 
+int wiz_bind(int socket, const struct sockaddr *name, socklen_t namelen)
+{
+    struct wiz_socket *sock = RT_NULL;
+    uint16_t port = 0;
+    ip_addr_t ipaddr;
+
+    RT_ASSERT(name);
+
+    /* Only support signed w5500 network interface device in wiznet,
+       and the bind function is implemented in the SAL component,
+       need to define "wiz_bind" function and register it. */
+    sock = wiz_get_socket(socket);
+    if (sock == RT_NULL)
+    {
+        return -1;
+    }
+
+    /* prase ip address and port */
+    socketaddr_to_ipaddr_port(name, &ipaddr, &port);
+
+    /* check socket bind port */
+    if (sock->port != port && sock->type == Sn_MR_UDP)
+    {
+        struct wiz_socket *new_sock = RT_NULL;
+
+        /* close old socket */
+        if (wiz_closesocket(socket) < 0)
+        {
+            return -1;
+        }
+
+        /* create new socket by bind port */
+        new_sock = alloc_socket();
+        if (new_sock == RT_NULL)
+        {
+            return -1;
+        }
+        new_sock->type = Sn_MR_UDP;
+
+#ifdef SAL_USING_POSIX
+        rt_wqueue_init(&new_sock->wait_head);
+#endif
+        if (wizchip_socket(new_sock->socket, new_sock->type, port, 0) != new_sock->socket)
+        {
+            return -1;
+        }
+        new_sock->state = SOCK_INIT;
+        new_sock->port = port;
+    }
+    else
+    {
+        sock->port = port;
+    }
+
+    return 0;
+}
+
 int wiz_connect(int socket, const struct sockaddr *name, socklen_t namelen)
 {
-    struct wiz_socket *sock;
+    struct wiz_socket *sock = RT_NULL;
     ip_addr_t remote_addr;
-    uint16_t remote_port;
-    uint8_t socket_state;
-    uint8_t ipstr[4] = { 0 };
+    uint16_t remote_port = 0;
+    uint8_t socket_state = 0;
+    uint8_t ipstr[4] = {0};
     int result = 0;
+
+    RT_ASSERT(name);
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
@@ -507,18 +848,18 @@ int wiz_connect(int socket, const struct sockaddr *name, socklen_t namelen)
     socket_state = getSn_SR(socket);
     if (socket_state == SOCK_UDP || socket_state == SOCK_IPRAW)
     {
-        if(sock->server_addr == RT_NULL)
+        if (sock->remote_addr == RT_NULL)
         {
-            sock->server_addr = rt_calloc(1, sizeof(struct sockaddr));
-            if (sock->server_addr == RT_NULL)
+            sock->remote_addr = rt_calloc(1, sizeof(struct sockaddr));
+            if (sock->remote_addr == RT_NULL)
             {
                 LOG_E("no memory for structure sockaddr.");
                 return -1;
             }
         }
-        sock->server_addr->sa_len = name->sa_len;
-        sock->server_addr->sa_family = name->sa_family;
-        rt_memcpy(sock->server_addr->sa_data, name->sa_data, 14);
+        sock->remote_addr->sa_len = name->sa_len;
+        sock->remote_addr->sa_family = name->sa_family;
+        rt_memcpy(sock->remote_addr->sa_data, name->sa_data, 14);
 
         return 0;
     }
@@ -554,10 +895,81 @@ __exit:
     return result;
 }
 
+int wiz_accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
+{
+    struct wiz_socket *svr_sock = RT_NULL;
+    struct wiz_svr_info *svr_info = RT_NULL;
+    struct wiz_socket *clnt_sock = RT_NULL;
+    int clnt_socket = -1;
+
+    RT_ASSERT(addr);
+    RT_ASSERT(addrlen);
+
+    /* check WIZnet initialize status */
+    WIZ_INIT_STATUS_CHECK;
+
+    svr_sock = wiz_get_socket(socket);
+    if (svr_sock == RT_NULL)
+    {
+        return -1;
+    }
+    svr_info = svr_sock->svr_info;
+    /* set server socket to SOCK_LISTEN status for socket connect timer */
+    svr_sock->state = SOCK_LISTEN;
+
+    while (1)
+    {
+        /* receive client connect message */
+        if (rt_mb_recv(svr_info->conn_mbox, (void *)&clnt_sock, RT_WAITING_FOREVER) != RT_EOK)
+        {
+            return -1;
+        }
+
+        /* check connect message type */
+        clnt_socket = clnt_sock->socket;
+        if (getSn_SR(clnt_socket) != SOCK_ESTABLISHED)
+        {
+            /* clean server socket error event */
+            wiz_do_event_clean(svr_sock, WIZ_EVENT_ERROR);
+            /* error massage, close client socket */
+            wiz_closesocket(clnt_socket);
+            return -1;
+        }
+
+        /* get new client socket information */
+        {
+            struct sockaddr_in *sin = (struct sockaddr_in *)addr;
+            uint8_t ipstr[4] = {0};
+            uint16_t remote_port = 0;
+            char remote_ipaddr[16] = {0};
+
+            /* set client socket status */
+            clnt_sock->state = SOCK_ESTABLISHED;
+
+            /* get the remote IP address and port */
+            getSn_DIPR(clnt_socket, ipstr);
+            remote_port = getSn_DPORT(clnt_socket);
+            rt_snprintf(remote_ipaddr, sizeof(remote_ipaddr), "%d.%d.%d.%d", ipstr[0], ipstr[1], ipstr[2], ipstr[3]);
+            LOG_D("remote ip: %s, remote port: %d\n", remote_ipaddr, remote_port);
+
+            /* full address and port */
+            sin->sin_port = htons(remote_port);
+            sin->sin_addr.s_addr = inet_addr((const char *)remote_ipaddr);
+            rt_memset(&(sin->sin_zero), 0, sizeof(sin->sin_zero));
+            *addrlen = sizeof(struct sockaddr);
+
+            /* clean server socket receive event and status */
+            wiz_do_event_clean(svr_sock, WIZ_EVENT_RECV);
+
+            return clnt_socket;
+        }
+    }
+}
+
 int wiz_sendto(int socket, const void *data, size_t size, int flags, const struct sockaddr *to, socklen_t tolen)
 {
-    struct wiz_socket *sock;
-    uint8_t socket_state;
+    struct wiz_socket *sock = RT_NULL;
+    uint8_t socket_state = 0;
     int32_t send_len = 0;
 
     /* check WIZnet initialize status */
@@ -590,7 +1002,7 @@ int wiz_sendto(int socket, const void *data, size_t size, int flags, const struc
             return -1;
         }
 
-        if ((send_len = wizchip_send(socket, (uint8_t *) data, size)) < 0)
+        if ((send_len = wizchip_send(socket, (uint8_t *)data, size)) < 0)
         {
             LOG_E("WIZnet socket(%d) send data failed(%d).", socket, send_len);
             return -1;
@@ -603,7 +1015,7 @@ int wiz_sendto(int socket, const void *data, size_t size, int flags, const struc
     {
         ip_addr_t remote_addr;
         uint16_t remote_port = 0;
-        uint8_t ipstr[4] = { 0 };
+        uint8_t ipstr[4] = {0};
 
         if (socket_state != SOCK_UDP && socket_state != SOCK_IPRAW)
         {
@@ -616,13 +1028,13 @@ int wiz_sendto(int socket, const void *data, size_t size, int flags, const struc
             socketaddr_to_ipaddr_port(to, &remote_addr, &remote_port);
             ipaddr_to_ipstr(to, ipstr);
         }
-        else if (sock->server_addr)
+        else if (sock->remote_addr)
         {
-            socketaddr_to_ipaddr_port(sock->server_addr, &remote_addr, &remote_port);
-            ipaddr_to_ipstr(sock->server_addr, ipstr);
+            socketaddr_to_ipaddr_port(sock->remote_addr, &remote_addr, &remote_port);
+            ipaddr_to_ipstr(sock->remote_addr, ipstr);
         }
 
-        if ((send_len = wizchip_sendto(socket, (uint8_t *) data, size, ipstr, remote_port)) < 0)
+        if ((send_len = wizchip_sendto(socket, (uint8_t *)data, size, ipstr, remote_port)) < 0)
         {
             LOG_E("WIZnet socket(%d) send data failed(%d).", socket, send_len);
             return -1;
@@ -645,7 +1057,7 @@ int wiz_send(int socket, const void *data, size_t size, int flags)
 
 int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen)
 {
-    struct wiz_socket *sock;
+    struct wiz_socket *sock = RT_NULL;
     uint8_t socket_state = 0;
     int32_t recv_len = 0, timeout = 0;
     int result = 0;
@@ -683,7 +1095,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     {
         uint16_t recvsize = getSn_RX_RSR(socket);
         /* receive last transmission of remaining data */
-        if(recvsize>0)
+        if (recvsize > 0)
         {
             rt_mutex_take(sock->recv_lock, RT_WAITING_FOREVER);
             recv_len = wizchip_recv(socket, mem, len);
@@ -704,7 +1116,6 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             LOG_E("WIZnet receive failed, get socket(%d) register state(%d) error.", socket, socket_state);
             result = -1;
             goto __exit;
-
         }
 
         while (1)
@@ -751,9 +1162,8 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
     case Sn_MR_UDP:
     case Sn_MR_IPRAW:
     {
-        ip_addr_t remote_addr;
         uint16_t remote_port = 0;
-        uint8_t ipstr[4] = { 0 };
+        uint8_t ipstr[4] = {0};
         uint16_t rx_len = 0;
 
         if (socket_state != SOCK_UDP && socket_state != SOCK_IPRAW)
@@ -762,17 +1172,7 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             return -1;
         }
 
-        if (from)
-        {
-            socketaddr_to_ipaddr_port(from, &remote_addr, &remote_port);
-            ipaddr_to_ipstr(from, ipstr);
-        }
-        else if (sock->server_addr)
-        {
-            socketaddr_to_ipaddr_port(sock->server_addr, &remote_addr, &remote_port);
-            ipaddr_to_ipstr(sock->server_addr, ipstr);
-        }
-
+__continue:
         if (rt_sem_take(sock->recv_notice, timeout) < 0)
         {
             result = -1;
@@ -789,12 +1189,39 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
             {
                 rx_len = rx_len > len ? len : rx_len;
 
-                if((recv_len = wizchip_recvfrom(socket, mem, rx_len, ipstr, &remote_port)) < 0)
+                if (sock->state != SOCK_CLOSED)
                 {
-                    LOG_E("WIZnet socket(%d) receive data failed(%d).", socket, recv_len);
-                    result = -1;
+                    recv_len = wizchip_recvfrom(socket, mem, rx_len, ipstr, &remote_port);
+                    if (recv_len < 0)
+                    {
+                        LOG_E("WIZnet socket(%d) receive data failed(%d).", socket, recv_len);
+                        result = -1;
+                        goto __exit;
+                    }
+                    else
+                    {
+                        char remote_ipaddr[16] = {0};
+                        struct sockaddr_in *sin = (struct sockaddr_in *)from;
+
+                        rt_snprintf(remote_ipaddr, sizeof(remote_ipaddr), "%d.%d.%d.%d",
+                                    ipstr[0], ipstr[1], ipstr[2], ipstr[3]);
+                        /* full address and port */
+                        sin->sin_port = htons(remote_port);
+                        sin->sin_addr.s_addr = inet_addr((const char *)remote_ipaddr);
+                        rt_memset(&(sin->sin_zero), 0, sizeof(sin->sin_zero));
+                        *fromlen = sizeof(struct sockaddr);
+                    }
+                }
+                else if (sock->state == SOCK_CLOSED)
+                {
+                    result = 0;
                     goto __exit;
                 }
+            }
+            else
+            {
+                /* clean receive data isr */
+                goto __continue;
             }
         }
         break;
@@ -804,7 +1231,6 @@ int wiz_recvfrom(int socket, void *mem, size_t len, int flags, struct sockaddr *
         LOG_E("WIZnet socket (%d) type %d is not support.", socket, sock->type);
         return -1;
     }
-
 
 __exit:
     if (recv_len > 0)
@@ -833,8 +1259,8 @@ int wiz_recv(int socket, void *mem, size_t len, int flags)
 
 int wiz_getsockopt(int socket, int level, int optname, void *optval, socklen_t *optlen)
 {
-    struct wiz_socket *sock;
-    int32_t timeout;
+    struct wiz_socket *sock = RT_NULL;
+    int32_t timeout = 0;
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
@@ -865,8 +1291,8 @@ int wiz_getsockopt(int socket, int level, int optname, void *optval, socklen_t *
 
         case SO_SNDTIMEO:
             timeout = sock->send_timeout;
-            ((struct timeval *) optval)->tv_sec = timeout / 1000U;
-            ((struct timeval *) optval)->tv_usec = (timeout % 1000U) * 1000U;
+            ((struct timeval *)optval)->tv_sec = timeout / 1000U;
+            ((struct timeval *)optval)->tv_usec = (timeout % 1000U) * 1000U;
             break;
 
         default:
@@ -880,7 +1306,7 @@ int wiz_getsockopt(int socket, int level, int optname, void *optval, socklen_t *
     {
         int8_t ret = 0;
 
-        ret = wizchip_getsockopt(socket, (sockopt_type) level, optval);
+        ret = wizchip_getsockopt(socket, (sockopt_type)level, optval);
         if (ret != SOCK_OK)
         {
             LOG_E("WIZnet getsocketopt input level(%d) error.", level);
@@ -894,7 +1320,7 @@ int wiz_getsockopt(int socket, int level, int optname, void *optval, socklen_t *
 }
 int wiz_setsockopt(int socket, int level, int optname, const void *optval, socklen_t optlen)
 {
-    struct wiz_socket *sock;
+    struct wiz_socket *sock = RT_NULL;
 
     /* check WIZnet initialize status */
     WIZ_INIT_STATUS_CHECK;
@@ -918,13 +1344,11 @@ int wiz_setsockopt(int socket, int level, int optname, const void *optval, sockl
         switch (optname)
         {
         case SO_RCVTIMEO:
-            sock->recv_timeout = ((const struct timeval *) optval)->tv_sec * 1000
-                    + ((const struct timeval *) optval)->tv_usec / 1000;
+            sock->recv_timeout = ((const struct timeval *)optval)->tv_sec * 1000 + ((const struct timeval *)optval)->tv_usec / 1000;
             break;
 
         case SO_SNDTIMEO:
-            sock->send_timeout = ((const struct timeval *) optval)->tv_sec * 1000
-                    + ((const struct timeval *) optval)->tv_usec / 1000;
+            sock->send_timeout = ((const struct timeval *)optval)->tv_sec * 1000 + ((const struct timeval *)optval)->tv_usec / 1000;
             break;
 
         default:
@@ -948,7 +1372,7 @@ int wiz_setsockopt(int socket, int level, int optname, const void *optval, sockl
     {
         int8_t ret = 0;
 
-        ret = wizchip_setsockopt(socket, (sockopt_type) optname, (void *)optval);
+        ret = wizchip_setsockopt(socket, (sockopt_type)optname, (void *)optval);
         if (ret != SOCK_OK)
         {
             LOG_E("WIZnet getsocketopt input level(%d) error.", level);
@@ -961,7 +1385,7 @@ int wiz_setsockopt(int socket, int level, int optname, const void *optval, sockl
     return 0;
 }
 
-static uint32_t ipstr_atol(const char* nptr)
+static uint32_t ipstr_atol(const char *nptr)
 {
     uint32_t total = 0;
     char sign = '+';
@@ -986,24 +1410,24 @@ static uint32_t ipstr_atol(const char* nptr)
 /* IP address to unsigned int type */
 static uint32_t ipstr_to_u32(char *ipstr)
 {
-    char ipBytes[4] = { 0 };
+    char ipBytes[4] = {0};
     uint32_t i;
 
     for (i = 0; i < 4; i++, ipstr++)
     {
-        ipBytes[i] = (char) ipstr_atol(ipstr);
+        ipBytes[i] = (char)ipstr_atol(ipstr);
         if ((ipstr = strchr(ipstr, '.')) == RT_NULL)
         {
             break;
         }
     }
-    return *(uint32_t *) ipBytes;
+    return *(uint32_t *)ipBytes;
 }
 
 struct hostent *wiz_gethostbyname(const char *name)
 {
     ip_addr_t addr;
-    char ipstr[16] = { 0 };
+    char ipstr[16] = {0};
     /* buffer variables for at_gethostbyname() */
     static struct hostent s_hostent;
     static char *s_aliases;
@@ -1014,7 +1438,7 @@ struct hostent *wiz_gethostbyname(const char *name)
 
     /* check WIZnet initialize status */
     if (wiz_init_ok == RT_FALSE ||
-            (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
+        (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return RT_NULL;
     }
@@ -1031,8 +1455,8 @@ struct hostent *wiz_gethostbyname(const char *name)
     if (idx < rt_strlen(name))
     {
         int8_t ret = 0;
-        uint8_t remote_ip[4] = { 0 };
-        uint8_t dns_ip[4] = { 114, 114, 114, 114 };
+        uint8_t remote_ip[4] = {0};
+        uint8_t dns_ip[4] = {114, 114, 114, 114};
         uint8_t data_buffer[512];
 
         for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
@@ -1045,7 +1469,7 @@ struct hostent *wiz_gethostbyname(const char *name)
         /* DNS client initialize */
         DNS_init(idx, data_buffer);
         /* DNS client processing */
-        ret = DNS_run(dns_ip, (uint8_t *) name, remote_ip);
+        ret = DNS_run(dns_ip, (uint8_t *)name, remote_ip);
         if (ret == -1)
         {
             LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");
@@ -1089,7 +1513,7 @@ struct hostent *wiz_gethostbyname(const char *name)
     s_hostent.h_aliases = &s_aliases;
     s_hostent.h_addrtype = AF_WIZ;
     s_hostent.h_length = sizeof(ip_addr_t);
-    s_hostent.h_addr_list = (char**) &s_phostent_addr;
+    s_hostent.h_addr_list = (char **)&s_phostent_addr;
 
     return &s_hostent;
 }
@@ -1098,15 +1522,15 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
 {
     int port_nr = 0;
     ip_addr_t addr;
-    struct addrinfo *ai;
-    struct sockaddr_storage *sa;
+    struct addrinfo *ai = RT_NULL;
+    struct sockaddr_storage *sa = RT_NULL;
     size_t total_size = 0;
     size_t namelen = 0;
     int ai_family = 0;
 
     /* check WIZnet initialize status */
     if (wiz_init_ok == RT_FALSE ||
-            (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
+        (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return EAI_FAIL;
     }
@@ -1147,7 +1571,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
         if ((hints != RT_NULL) && (hints->ai_flags & AI_NUMERICHOST))
         {
             /* no DNS lookup, just parse for an address string */
-            if (!inet_aton(nodename, (ip4_addr_t * )&addr))
+            if (!inet_aton(nodename, (ip4_addr_t *)&addr))
             {
                 return EAI_NONAME;
             }
@@ -1159,17 +1583,17 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
         }
         else
         {
-            char ipstr[16] = { 0 };
+            char ipstr[16] = {0};
             size_t idx = 0;
 
             /* check domain name or IP address */
             for (idx = 0; idx < rt_strlen(nodename) && !isalpha(nodename[idx]); idx++);
 
-            if(idx < rt_strlen(nodename))
+            if (idx < rt_strlen(nodename))
             {
                 int8_t ret;
-                uint8_t remote_ip[4] = { 0 };
-                uint8_t dns_ip[4] = { 114, 114, 114, 114 };
+                uint8_t remote_ip[4] = {0};
+                uint8_t dns_ip[4] = {114, 114, 114, 114};
                 uint8_t data_buffer[512];
 
                 for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
@@ -1182,7 +1606,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 /* DNS client initialize */
                 DNS_init(idx, data_buffer);
                 /* DNS client processing */
-                ret = DNS_run(dns_ip, (uint8_t *) nodename, remote_ip);
+                ret = DNS_run(dns_ip, (uint8_t *)nodename, remote_ip);
                 if (ret == -1)
                 {
                     LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");
@@ -1208,17 +1632,17 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 rt_strncpy(ipstr, nodename, rt_strlen(nodename));
             }
 
-        #if NETDEV_IPV4 && NETDEV_IPV6
+#if NETDEV_IPV4 && NETDEV_IPV6
             addr.type = IPADDR_TYPE_V4;
             if ((addr.u_addr.ip4.addr = ipstr_to_u32(ip_str)) == 0)
             {
                 return EAI_FAIL;
             }
-        #elif NETDEV_IPV4
+#elif NETDEV_IPV4
             addr.addr = ipstr_to_u32(ipstr);
-        #elif NETDEV_IPV6
+#elif NETDEV_IPV6
             LOG_E("not support IPV6.");
-        #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
+#endif /* NETDEV_IPV4 && NETDEV_IPV6 */
         }
     }
     else
@@ -1240,15 +1664,15 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
     }
     /* If this fails, please report to lwip-devel! :-) */
     RT_ASSERT(total_size <= sizeof(struct addrinfo) + sizeof(struct sockaddr_storage) + DNS_MAX_NAME_LENGTH + 1);
-    ai = (struct addrinfo *) rt_malloc(total_size);
+    ai = (struct addrinfo *)rt_malloc(total_size);
     if (ai == RT_NULL)
     {
         return EAI_MEMORY;
     }
     rt_memset(ai, 0, total_size);
     /* cast through void* to get rid of alignment warnings */
-    sa = (struct sockaddr_storage *) (void *) ((uint8_t *) ai + sizeof(struct addrinfo));
-    struct sockaddr_in *sa4 = (struct sockaddr_in *) sa;
+    sa = (struct sockaddr_storage *)(void *)((uint8_t *)ai + sizeof(struct addrinfo));
+    struct sockaddr_in *sa4 = (struct sockaddr_in *)sa;
     /* set up sockaddr */
 #if NETDEV_IPV4 && NETDEV_IPV6
     sa4->sin_addr.s_addr = addr.u_addr.ip4.addr;
@@ -1259,7 +1683,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
 #endif /* NETDEV_IPV4 && NETDEV_IPV6 */
     sa4->sin_family = AF_INET;
     sa4->sin_len = sizeof(struct sockaddr_in);
-    sa4->sin_port = htons((uint16_t )port_nr);
+    sa4->sin_port = htons((uint16_t)port_nr);
     ai->ai_family = AF_INET;
 
     /* set up addrinfo */
@@ -1272,12 +1696,12 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
     if (nodename != RT_NULL)
     {
         /* copy nodename to canonname if specified */
-        ai->ai_canonname = ((char *) ai + sizeof(struct addrinfo) + sizeof(struct sockaddr_storage));
+        ai->ai_canonname = ((char *)ai + sizeof(struct addrinfo) + sizeof(struct sockaddr_storage));
         rt_memcpy(ai->ai_canonname, nodename, namelen);
         ai->ai_canonname[namelen] = 0;
     }
     ai->ai_addrlen = sizeof(struct sockaddr_storage);
-    ai->ai_addr = (struct sockaddr *) sa;
+    ai->ai_addr = (struct sockaddr *)sa;
 
     *res = ai;
 
@@ -1286,11 +1710,11 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
 
 void wiz_freeaddrinfo(struct addrinfo *ai)
 {
-    struct addrinfo *next;
+    struct addrinfo *next = RT_NULL;
 
     /* check WIZnet initialize status */
     if (wiz_init_ok == RT_FALSE ||
-            (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
+        (getPHYCFGR() & PHYCFGR_LNK_ON) != PHYCFGR_LNK_ON)
     {
         return;
     }
