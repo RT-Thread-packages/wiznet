@@ -42,6 +42,10 @@
 #define WIZ_DEF_LOCAL_PORT             6000
 #endif
 
+#ifndef RT_USING_TIMER_SOFT
+#error "please enable soft timer(RT_USING_TIMER_SOFT) support in kernel configure."
+#endif
+
 extern rt_bool_t wiz_init_ok;
 #define WIZ_INIT_STATUS_CHECK                              \
     if (wiz_init_ok == RT_FALSE ||                         \
