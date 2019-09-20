@@ -102,12 +102,12 @@ static void spi_read_burst(uint8_t *pbuf, uint16_t len)
 
 static void spi_cris_enter(void)
 {
-    rt_enter_critical();
+    rt_spi_take_bus(wiz_device);
 }
 
 static void spi_cris_exit(void)
 {
-    rt_exit_critical();
+    rt_spi_release_bus(wiz_device);
 }
 
 static void spi_cs_select(void)
