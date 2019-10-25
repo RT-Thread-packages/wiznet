@@ -99,7 +99,7 @@ static int wiz_ping_request(int socket)
     return send_len - WIZ_PING_HEAD_LEN;
 }
 
-static int wiz_ping_reply(int socket)
+static int wiz_ping_reply(int socket, struct sockaddr *from)
 {
     uint16_t tmp_checksum;
     uint8_t recv_buf[WIZ_PING_HEAD_LEN + WIZ_PING_DATA_LEN + 1];
@@ -123,7 +123,9 @@ static int wiz_ping_reply(int socket)
         }
         else
         {
-            recv_len = wiz_recv(socket, recv_buf, WIZ_PING_HEAD_LEN + WIZ_PING_DATA_LEN, 0);
+            struct sockaddr *sin = (struct sockaddr *)from;
+            socklen_t addr_len = sizeof(struct sockaddr_in);
+            recv_len = wiz_recvfrom(socket, recv_buf, WIZ_PING_HEAD_LEN + WIZ_PING_DATA_LEN, 0, sin, &addr_len);
             if (recv_len < 0)
             {
                 return -1;
@@ -238,7 +240,7 @@ int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t 
     if ((result = wiz_ping_request(socket)) > 0)
     {
         recv_start_tick = rt_tick_get();
-        result = wiz_ping_reply(socket);
+        result = wiz_ping_reply(socket, (struct sockaddr *) &server_addr);
     }
 
     if(result > 0)
