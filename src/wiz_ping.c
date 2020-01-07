@@ -193,13 +193,15 @@ int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t 
     /* get network interface socket operations */
     if (pf == RT_NULL || pf->skt_ops == RT_NULL)
     {
-        result = -RT_FALSE;
+        rt_kprintf("wiz_ping: pf or pf->skt_ops is RT_NULL.\n");
+        return -RT_FALSE;
     }
   
     hostent = (struct hostent *) pf->netdb_ops->gethostbyname(host);
     if (hostent == RT_NULL)
     {
-        result = -RT_FALSE;
+        rt_kprintf("wiz_ping: hostent is RT_NULL.\n");
+        return -RT_FALSE;
     }
 
     socket = -1;
