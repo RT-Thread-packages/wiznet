@@ -55,6 +55,7 @@ static int wiz_netdev_info_update(struct netdev *netdev);
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
 static rt_timer_t  dns_tick_timer;
+static rt_timer_t  dhcp_timer;
 
 static void spi_write_byte(uint8_t data)
 {
@@ -234,7 +235,6 @@ static int wiz_network_dhcp(void)
     uint8_t dhcp_status;
     uint8_t data_buffer[1024];
     uint8_t dhcp_times = 0;
-    rt_timer_t dhcp_timer;
 
     /* set default MAC address for DHCP */
     setSHAR(wiz_net_info.mac);
@@ -267,7 +267,7 @@ static int wiz_network_dhcp(void)
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
-            rt_timer_delete(dhcp_timer);
+            rt_timer_stop(dhcp_timer);
             return RT_EOK;
         }
         case DHCP_FAILED:
@@ -276,7 +276,7 @@ static int wiz_network_dhcp(void)
             if (dhcp_times > WIZ_DHCP_RETRY)
             {
                 DHCP_stop();
-                rt_timer_delete(dhcp_timer);
+                rt_timer_stop(dhcp_timer);
                 return -RT_ETIMEOUT;
             }
             break;
@@ -647,6 +647,7 @@ static rt_err_t wiz_dhcp_restart(void)
     uint32_t dhcp_status = 0;
     uint8_t data_buffer[1024];
 
+    rt_timer_start(dhcp_timer);
     DHCP_init(WIZ_RESTART_DHCP_SOCKET, data_buffer);
     while (1)
     {
@@ -664,7 +665,7 @@ static rt_err_t wiz_dhcp_restart(void)
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
-
+            rt_timer_stop(dhcp_timer);
             return RT_EOK;
         }
         case DHCP_FAILED:
@@ -673,6 +674,7 @@ static rt_err_t wiz_dhcp_restart(void)
             if (dhcp_times > WIZ_DHCP_RETRY)
             {
                 DHCP_stop();
+                rt_timer_stop(dhcp_timer);
                 return -RT_ETIMEOUT;
             }
             break;
