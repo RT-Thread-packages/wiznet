@@ -175,8 +175,8 @@ static int wiz_chip_cfg_init(void)
         now_tick = rt_tick_get();
         if (now_tick - start_tick > CW_INIT_TIMEOUT)
         {
-            LOG_E("WIZnet chip configure initialize timeout.");
-            return -RT_ETIMEOUT;
+            LOG_W("WIZnet chip configure initialize timeout.");
+            return RT_EOK;
         }
 
         /* waiting for link status online */
@@ -386,10 +386,10 @@ static int wiz_network_init(void)
         result = wiz_network_dhcp();
         if (result != RT_EOK)
         {
-            LOG_E("WIZnet network initialize failed, DHCP timeout.");
+            LOG_W("WIZnet network initialize failed, DHCP timeout.");
             netdev_low_level_set_status(netdev, RT_FALSE);
             netdev_low_level_set_link_status(netdev, RT_FALSE);
-            return result;
+            return RT_EOK;
         }
 
         /* create and start leased IP address timer */
