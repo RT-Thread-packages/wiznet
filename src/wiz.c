@@ -245,7 +245,7 @@ static int wiz_network_dhcp(void)
     /* register to assign IP address and conflict callback */
     reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
 
-    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
     if (dhcp_timer == RT_NULL)
     {
         return -RT_ERROR;
@@ -394,7 +394,7 @@ static int wiz_network_init(void)
 
         /* create and start leased IP address timer */
         lsd_timer = rt_timer_create("wiz_lsd", (void (*)(void *parameter))wiz_dhcp_restart, RT_NULL,
-                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
         if (lsd_timer)
         {
             rt_timer_start(lsd_timer);
