@@ -175,8 +175,8 @@ static int wiz_chip_cfg_init(void)
         now_tick = rt_tick_get();
         if (now_tick - start_tick > CW_INIT_TIMEOUT)
         {
-            LOG_E("WIZnet chip configure initialize timeout.");
-            return -RT_ETIMEOUT;
+            LOG_W("WIZnet chip configure initialize timeout.");
+            return RT_EOK;
         }
 
         /* waiting for link status online */
@@ -245,7 +245,7 @@ static int wiz_network_dhcp(void)
     /* register to assign IP address and conflict callback */
     reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
 
-    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
     if (dhcp_timer == RT_NULL)
     {
         return -RT_ERROR;
@@ -386,15 +386,15 @@ static int wiz_network_init(void)
         result = wiz_network_dhcp();
         if (result != RT_EOK)
         {
-            LOG_E("WIZnet network initialize failed, DHCP timeout.");
+            LOG_W("WIZnet network initialize failed, DHCP timeout.");
             netdev_low_level_set_status(netdev, RT_FALSE);
             netdev_low_level_set_link_status(netdev, RT_FALSE);
-            return result;
+            return RT_EOK;
         }
 
         /* create and start leased IP address timer */
         lsd_timer = rt_timer_create("wiz_lsd", (void (*)(void *parameter))wiz_dhcp_restart, RT_NULL,
-                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER|RT_TIMER_FLAG_PERIODIC);
         if (lsd_timer)
         {
             rt_timer_start(lsd_timer);
