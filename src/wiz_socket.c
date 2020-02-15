@@ -1459,8 +1459,7 @@ struct hostent *wiz_gethostbyname(const char *name)
     if (idx < rt_strlen(name))
     {
         int8_t ret = 0;
-        uint8_t remote_ip[4] = {0};
-        uint8_t dns_ip[4] = {114, 114, 114, 114};
+        uint8_t remote_ip[4] = {0};	 
         uint8_t data_buffer[512];
 
         for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
@@ -1470,10 +1469,13 @@ struct hostent *wiz_gethostbyname(const char *name)
             return RT_NULL;
         }
 
+		wiz_NetInfo net_info;   
+		ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+
         /* DNS client initialize */
         DNS_init(idx, data_buffer);
         /* DNS client processing */
-        ret = DNS_run(dns_ip, (uint8_t *)name, remote_ip);
+        ret = DNS_run(net_info.dns, (uint8_t *)name, remote_ip);
         if (ret == -1)
         {
             LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");

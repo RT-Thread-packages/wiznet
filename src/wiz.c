@@ -47,6 +47,8 @@
 #define WIZ_ID_LEN                     6
 static char wiz_netdev_name[WIZ_ID_LEN];
 
+#define WIZ_DHCP_SOCKET				   7
+
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
 extern int wiz_inet_init(void);
@@ -156,7 +158,7 @@ static int wiz_chip_cfg_init(void)
 {
 #define    CW_INIT_MODE         2
 #define    CW_INIT_SOCKETS      8
-#define    CW_INIT_TIMEOUT      (5 * RT_TICK_PER_SECOND)
+#define    CW_INIT_TIMEOUT      (2 * RT_TICK_PER_SECOND)
 
     rt_tick_t start_tick, now_tick;
     uint8_t phy_status;
@@ -195,10 +197,10 @@ static int wiz_chip_cfg_init(void)
 static void wiz_reset(void)
 {
     rt_pin_write(WIZ_RST_PIN, PIN_LOW);
-    rt_thread_mdelay(1);
+    rt_thread_mdelay(2);
 
     rt_pin_write(WIZ_RST_PIN, PIN_HIGH);
-    rt_thread_mdelay(1);
+    rt_thread_mdelay(2);
 }
 
 #ifdef WIZ_USING_DHCP
@@ -211,8 +213,7 @@ static void wiz_ip_assign(void)
     getDNSfromDHCP(wiz_net_info.dns);
     wiz_net_info.dhcp = NETINFO_DHCP;
 
-    ctlnetwork(CN_SET_NETINFO, (void*) &wiz_net_info);
-//    LOG_D("DHCP LEASED TIME : %d Sec.", getDHCPLeasetime());
+    ctlnetwork(CN_SET_NETINFO, (void*) &wiz_net_info);   
 }
 
 static void wiz_ip_conflict(void)
@@ -225,66 +226,6 @@ static void wiz_ip_conflict(void)
 static void wiz_dhcp_timer_entry(void *parameter)
 {
     DHCP_time_handler();
-}
-
-static int wiz_network_dhcp(void)
-{
-#define WIZ_DHCP_SOCKET      7
-#define WIZ_DHCP_RETRY       5
-
-    uint8_t dhcp_status;
-    uint8_t data_buffer[1024];
-    uint8_t dhcp_times = 0;
-
-    /* set default MAC address for DHCP */
-    setSHAR(wiz_net_info.mac);
-    /* DHCP configure initialize, clear information other than MAC address */
-    setSn_RXBUF_SIZE(WIZ_DHCP_SOCKET, 0x02);
-    setSn_TXBUF_SIZE(WIZ_DHCP_SOCKET, 0x02);
-    DHCP_init(WIZ_DHCP_SOCKET, data_buffer);
-    /* register to assign IP address and conflict callback */
-    reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
-
-    dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
-    if (dhcp_timer == RT_NULL)
-    {
-        return -RT_ERROR;
-    }
-    rt_timer_start(dhcp_timer);
-
-    while (1)
-    {
-        /* DHCP start, return DHCP_IP_LEASED is success. */
-        dhcp_status = DHCP_run();
-        switch (dhcp_status)
-        {
-        case DHCP_IP_ASSIGN:
-        case DHCP_IP_CHANGED:
-        {
-            // TODO: DHCP configure
-            break;
-        }
-        case DHCP_IP_LEASED:
-        {
-            DHCP_stop();
-            rt_timer_stop(dhcp_timer);
-            return RT_EOK;
-        }
-        case DHCP_FAILED:
-        {
-            dhcp_times ++;
-            if (dhcp_times > WIZ_DHCP_RETRY)
-            {
-                DHCP_stop();
-                rt_timer_stop(dhcp_timer);
-                return -RT_ETIMEOUT;
-            }
-            break;
-        }
-        default:
-            break;
-        }
-    }
 }
 #endif /* WIZ_USING_DHCP */
 
@@ -349,10 +290,31 @@ static int wiz_netstr_to_array(const char *net_str, uint8_t *net_array)
     return RT_EOK;
 }
 
-static rt_err_t wiz_dhcp_restart(void);
+/* set WIZnet device MAC address */
+RT_WEAK void wiz_user_config_mac(char *mac_buf, rt_uint8_t buf_len)
+{
+	RT_ASSERT(mac_buf != RT_NULL);
+	RT_ASSERT(buf_len > 0);
+	
+	rt_memset(mac_buf, 0x0, buf_len);
+	rt_strncpy(mac_buf, WIZ_DEFAULT_MAC, buf_len);
+}
+
+static void wiz_set_mac(void)
+{
+	char mac_str[32];
+	
+	wiz_user_config_mac(mac_str, sizeof(mac_str));
+	if (wiz_netstr_to_array(mac_str, wiz_net_info.mac) != RT_EOK)
+	{
+		wiz_netstr_to_array(WIZ_DEFAULT_MAC, wiz_net_info.mac);
+	}
+}
+
+static int wiz_network_dhcp(struct netdev *netdev);
 
 /* initialize WIZnet network configures */
-static int wiz_network_init(void)
+static int wiz_network_init(rt_bool_t b_config)
 {
     struct netdev * netdev;
     netdev = netdev_get_by_name(wiz_netdev_name);
@@ -374,39 +336,36 @@ static int wiz_network_init(void)
     wiz_net_info.dhcp = NETINFO_STATIC;
 #endif
 
+	int result = RT_EOK;
+	rt_bool_t b_status = b_config;
+	
+	/* set mac information */
+	wiz_set_mac();
     /* set static WIZnet network information */
-    ctlnetwork(CN_SET_NETINFO, (void*) &wiz_net_info);
+    ctlnetwork(CN_SET_NETINFO, (void*) &wiz_net_info);	
 
 #ifdef WIZ_USING_DHCP
     /* alloc IP address through DHCP */
     {
-        int result = RT_EOK;
-        rt_timer_t lsd_timer;
-
-        result = wiz_network_dhcp();
+        result = wiz_network_dhcp(netdev);
         if (result != RT_EOK)
         {
-            LOG_E("WIZnet network initialize failed, DHCP timeout.");
-            netdev_low_level_set_status(netdev, RT_FALSE);
-            netdev_low_level_set_link_status(netdev, RT_FALSE);
-            return result;
+        	b_status = RT_FALSE;
+            LOG_E("WIZnet network initialize failed, DHCP timeout.");			
         }
-
-        /* create and start leased IP address timer */
-        lsd_timer = rt_timer_create("wiz_lsd", (void (*)(void *parameter))wiz_dhcp_restart, RT_NULL,
-                (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
-        if (lsd_timer)
-        {
-            rt_timer_start(lsd_timer);
-        }
+		else
+		{
+			b_status = RT_TRUE;
+			LOG_D("WIZnet network initialize success.");	
+		}
     }
 #endif
 
-    netdev_low_level_set_status(netdev, RT_TRUE);
-    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_status(netdev, b_status);
+    netdev_low_level_set_link_status(netdev, b_status);
     wiz_netdev_info_update(netdev);
 
-    return RT_EOK;
+    return result;
 }
 
 /* wizenet socket initialize */
@@ -428,28 +387,6 @@ static int wiz_socket_init(void)
     for (idx = 0; idx < WIZ_SOCKETS_NUM; idx++)
     {
         setSn_IMR(idx, (IMR_TIMEOUT | IMR_RECV | IMR_DISCON));
-    }
-
-    return RT_EOK;
-}
-
-/* set WIZnet device MAC address */
-int wiz_set_mac(const char *mac)
-{
-    int result = RT_EOK;
-
-    RT_ASSERT(mac);
-
-    result = wiz_netstr_to_array(mac, wiz_net_info.mac);
-    if (result != RT_EOK)
-    {
-        return result;
-    }
-
-    if (wiz_init_ok == RT_TRUE)
-    {
-        /* set default MAC address to chip */
-        setSHAR(wiz_net_info.mac);
     }
 
     return RT_EOK;
@@ -638,18 +575,23 @@ static struct netdev *wiz_netdev_add(const char *netdev_name)
 }
 
 #ifdef WIZ_USING_DHCP
-static rt_err_t wiz_dhcp_restart(void)
+static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
 {
-#define WIZ_RESTART_DHCP_SOCKET 7
-#define WIZ_DHCP_RET 5
+#define WIZ_DHCP_WORK_RETRY 		1
+#define WIZ_DHCP_WORK_RETRY_TIME	(2 * RT_TICK_PER_SECOND)
+	
+	RT_ASSERT(dhcp_work_data != RT_NULL);
 
-    uint8_t dhcp_times = 0;
-    uint32_t dhcp_status = 0;
-    uint8_t data_buffer[1024];
+	struct netdev *netdev = (struct netdev *)dhcp_work_data;	
+		
+	uint8_t dhcp_times = 0;
+	uint8_t data_buffer[1024];
+	uint32_t dhcp_status = 0;
+	
+	rt_timer_start(dhcp_timer);
+    DHCP_init(WIZ_DHCP_SOCKET, data_buffer);
 
-    rt_timer_start(dhcp_timer);
-    DHCP_init(WIZ_RESTART_DHCP_SOCKET, data_buffer);
-    while (1)
+	while (1)
     {
         /* DHCP start, return DHCP_IP_LEASED is success. */
         dhcp_status = DHCP_run();
@@ -658,35 +600,78 @@ static rt_err_t wiz_dhcp_restart(void)
         {
         case DHCP_IP_ASSIGN:
         case DHCP_IP_CHANGED:
-        {
-            // TODO: DHCP configure
+        {            
+        	/* to update netdev information */
+    		wiz_netdev_info_update(netdev);
             break;
         }
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
             rt_timer_stop(dhcp_timer);
-            return RT_EOK;
+			/* to update netdev information */
+    		wiz_netdev_info_update(netdev);			
+			if (dhcp_work)
+			{
+				/* according to leaset time, config next DHCP produce */
+				rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
+	    		rt_work_submit(dhcp_work, (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND); 
+			}
+            return;
         }
         case DHCP_FAILED:
         {
             dhcp_times++;
-            if (dhcp_times > WIZ_DHCP_RETRY)
-            {
-                DHCP_stop();
-                rt_timer_stop(dhcp_timer);
-                return -RT_ETIMEOUT;
-            }
             break;
         }
+		case DHCP_STOPPED:
+		{
+			dhcp_times = WIZ_DHCP_WORK_RETRY;
+			break;
+		}
         default:
             break;
         }
-        if (dhcp_status == DHCP_STOPPED)
-            break;
-    }
+		
+        if (dhcp_times >= WIZ_DHCP_WORK_RETRY)
+        {
+            DHCP_stop();
+            rt_timer_stop(dhcp_timer);
 
-    return -RT_ERROR;
+			if (dhcp_work)
+			{
+				/* according to WIZ_DHCP_WORK_RETRY_TIME, config reconfig after 2 secs */
+				rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
+				rt_work_submit(dhcp_work, WIZ_DHCP_WORK_RETRY_TIME); 
+			}
+            break;
+        }
+    }
+}
+
+static int wiz_network_dhcp(struct netdev *netdev)
+{
+	if (netdev == RT_NULL)
+		return -RT_EINVAL;
+	
+	/* set default MAC address for DHCP */
+    setSHAR(wiz_net_info.mac);
+    /* DHCP configure initialize, clear information other than MAC address */
+    setSn_RXBUF_SIZE(WIZ_DHCP_SOCKET, 0x02);
+    setSn_TXBUF_SIZE(WIZ_DHCP_SOCKET, 0x02);
+	/* register to assign IP address and conflict callback */
+    reg_dhcp_cbfunc(wiz_ip_assign, wiz_ip_assign, wiz_ip_conflict);
+
+	dhcp_timer = rt_timer_create("wiz_dhcp", wiz_dhcp_timer_entry, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_PERIODIC);
+    if (dhcp_timer == RT_NULL)
+        return -RT_ERROR;
+
+	struct rt_work *dhcp_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
+	if (dhcp_work == RT_NULL)
+		return -RT_ENOMEM;
+	
+	wiz_dhcp_work(dhcp_work, netdev);
+	return RT_EOK;
 }
 #endif /* WIZ_USING_DHCP */
 
@@ -715,22 +700,11 @@ static void wiz_link_status_thread_entry(void *parameter)
             if (phycfgr & WIZ_PHYCFGR_LINK_STATUS)
             {
 #ifdef WIZ_USING_DHCP
-                /* Restart DHCP */
-                if (wiz_dhcp_restart() == RT_EOK)
-                {
-                    netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
-                    wiz_netdev_info_update(netdev);
-                    LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
-                }
-                else
-                {
-                    LOG_E("%s netdev dhcp failed!", wiz_netdev_name);
-                }
-#else
-                    netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
-                    wiz_netdev_info_update(netdev);
-                    LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
-#endif
+				wiz_dhcp_work(RT_NULL, netdev);
+#endif				
+                netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                wiz_netdev_info_update(netdev);
+                LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
             }
             else
             {
@@ -746,18 +720,13 @@ static void wiz_link_status_thread_entry(void *parameter)
 int wiz_init(void)
 {
     int result = RT_EOK;
+    rt_bool_t b_config = RT_TRUE;
     rt_thread_t tid;
 
     if (wiz_init_ok == RT_TRUE)
     {
         LOG_I("RT-Thread WIZnet package is already initialized.");
         return RT_EOK;
-    }
-
-    result = wiz_set_mac(WIZ_DEFAULT_MAC);
-    if (result != RT_EOK)
-    {
-        goto __exit;
     }
 
     /* WIZnet SPI device and pin initialize */
@@ -775,14 +744,14 @@ int wiz_init(void)
     wiz_reset();
     /* set WIZnet device read/write data callback */
     wiz_callback_register();
-    /* WIZnet chip configure initialize */
+    /* WIZnet chip configure initialize */	
     result = wiz_chip_cfg_init();
     if (result != RT_EOK)
     {
-        goto __exit;
+        b_config = RT_FALSE;
     }
     /* WIZnet network initialize */
-    result = wiz_network_init();
+    result = wiz_network_init(b_config);
     if (result != RT_EOK)
     {
         goto __exit;
