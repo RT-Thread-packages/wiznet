@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 /* WIZnet set chip MAC address */
-int wiz_set_mac(const char *mac);
+void wiz_user_config_mac(char *mac_buf, rt_uint8_t buf_len);
 /* WIZnet initialize device and network */
 int wiz_init(void);
 
