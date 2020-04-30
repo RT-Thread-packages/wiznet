@@ -209,7 +209,7 @@ int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t 
     socket = wiz_socket(AF_WIZ, SOCK_RAW, 0);
     if (socket < 0)
     {
-        rt_kprintf("wiz_ping: create ping socket(%d) failed.\n");
+        rt_kprintf("wiz_ping: create ping socket(%d) failed.\n",socket);
         return -1;
     }
     /* set socket ICMP protocol */
