@@ -1460,8 +1460,7 @@ struct hostent *wiz_gethostbyname(const char *name)
     if (idx < rt_strlen(name))
     {
         int8_t ret = 0;
-        uint8_t remote_ip[4] = {0};
-        uint8_t dns_ip[4] = {114, 114, 114, 114};
+        uint8_t remote_ip[4] = {0};	 
         uint8_t data_buffer[512];
 
         /* allocate and initialize a new WIZnet socket */
@@ -1471,6 +1470,9 @@ struct hostent *wiz_gethostbyname(const char *name)
             LOG_E("WIZnet DNS failed, socket number is full.");
             return RT_NULL;
         }
+
+		wiz_NetInfo net_info;   
+		ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
 
         /* DNS client initialize */
         DNS_init(idx, data_buffer);
