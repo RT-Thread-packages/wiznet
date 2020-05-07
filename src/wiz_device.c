@@ -119,7 +119,7 @@ static int wiz_spi_init(const char *spi_dev_name)
     wiz_device = (struct rt_spi_device *) rt_device_find(spi_dev_name);
     if (wiz_device == RT_NULL)
     {
-        LOG_E("WIZnet SPI device %s not found!", spi_dev_name);
+        LOG_E("You should attach [%s] into SPI bus firstly.", spi_dev_name);
         return -RT_ENOSYS;
     }
 
