@@ -621,12 +621,12 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
             rt_timer_stop(dhcp_timer);
             /* to update netdev information */
             wiz_netdev_info_update(netdev, RT_FALSE);
-			if (dhcp_work)
-			{
-				/* according to leaset time, config next DHCP produce */
-				rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
-	    		rt_work_submit(dhcp_work, (getDHCPLeasetime() - 60) * RT_TICK_PER_SECOND); 
-			}
+            if (dhcp_work)
+            {
+                /* according to the DHCP leaset time, config next DHCP produce */
+                rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
+                rt_work_submit(dhcp_work, (getDHCPLeasetime() / 2) * RT_TICK_PER_SECOND);
+            }
             return;
         }
         case DHCP_FAILED:
