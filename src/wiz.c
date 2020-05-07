@@ -57,7 +57,10 @@ static int wiz_netdev_info_update(struct netdev *netdev, rt_bool_t reset);
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
 static rt_timer_t  dns_tick_timer;
+
+#ifdef WIZ_USING_DHCP
 static rt_timer_t  dhcp_timer;
+#endif
 
 static void spi_write_byte(uint8_t data)
 {
@@ -311,7 +314,9 @@ static void wiz_set_mac(void)
     }
 }
 
+#ifdef WIZ_USING_DHCP
 static int wiz_network_dhcp(struct netdev *netdev);
+#endif
 
 /* initialize WIZnet network configures */
 static int wiz_network_init(rt_bool_t b_config)
@@ -327,7 +332,8 @@ static int wiz_network_init(rt_bool_t b_config)
 #ifndef WIZ_USING_DHCP
     if(wiz_netstr_to_array(WIZ_IPADDR, wiz_net_info.ip) != RT_EOK ||
             wiz_netstr_to_array(WIZ_MSKADDR, wiz_net_info.sn) != RT_EOK ||
-                wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
+                wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.dns) != RT_EOK ||
+                    wiz_netstr_to_array(WIZ_GWADDR, wiz_net_info.gw) != RT_EOK)
     {
         netdev_low_level_set_status(netdev, RT_FALSE);
         netdev_low_level_set_link_status(netdev, RT_FALSE);
@@ -711,6 +717,8 @@ static void wiz_link_status_thread_entry(void *parameter)
             {
 #ifdef WIZ_USING_DHCP
                 wiz_dhcp_work(RT_NULL, netdev);
+#else
+                wiz_network_init(RT_TRUE);
 #endif
                 netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
                 wiz_netdev_info_update(netdev, RT_FALSE);
