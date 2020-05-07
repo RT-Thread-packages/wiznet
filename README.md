@@ -147,7 +147,7 @@ msh />wiz_ping baidu.com
 
 - WIZnet 软件包最新版本已支持作为 server 服务器模式（V1.1.0 版本之前不支持）。
 
-- WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，是因为没有挂在 winzet 设备到 SPI 总线导致的；请参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
+- WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，是因为没有挂载 winzet 设备到 SPI 总线导致的；请参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
 
 
 ## 5、注意事项
