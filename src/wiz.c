@@ -727,6 +727,7 @@ static void wiz_link_status_thread_entry(void *parameter)
     }
 }
 
+/* #include "stm32f4xx_hal.h" */
 /* WIZnet initialize device and network */
 int wiz_init(void)
 {
@@ -739,6 +740,9 @@ int wiz_init(void)
         LOG_I("RT-Thread WIZnet package is already initialized.");
         return RT_EOK;
     }
+
+    /* I think you can attach w5500 into spi bus at here. You can use this function to realize.*/
+    /* extern rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, GPIO_TypeDef *cs_gpiox, uint16_t cs_gpio_pin); */
 
     /* WIZnet SPI device and pin initialize */
     result = wiz_device_init(WIZ_SPI_DEVICE, WIZ_RST_PIN, WIZ_IRQ_PIN);
