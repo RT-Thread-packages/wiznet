@@ -52,7 +52,7 @@ static char wiz_netdev_name[WIZ_ID_LEN];
 extern struct rt_spi_device *wiz_device;
 extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
 extern int wiz_inet_init(void);
-static int wiz_netdev_info_update(struct netdev *netdev);
+static int wiz_netdev_info_update(struct netdev *netdev, rt_bool_t reset);
 
 rt_bool_t wiz_init_ok = RT_FALSE;
 static wiz_NetInfo wiz_net_info;
@@ -363,7 +363,7 @@ static int wiz_network_init(rt_bool_t b_config)
 
     netdev_low_level_set_status(netdev, b_status);
     netdev_low_level_set_link_status(netdev, b_status);
-    wiz_netdev_info_update(netdev);
+    wiz_netdev_info_update(netdev, RT_FALSE);
 
     return result;
 }
@@ -398,11 +398,21 @@ static void wiz_dns_time_handler(void *arg)
     DNS_time_handler();
 }
 
-static int wiz_netdev_info_update(struct netdev *netdev)
+static int wiz_netdev_info_update(struct netdev *netdev, rt_bool_t reset)
 {
     wiz_NetInfo net_info;
+    rt_memset(&net_info, 0, sizeof(net_info));
 
-    ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+    if(reset == RT_FALSE)
+    {
+        ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+    }
+    else
+    {
+        /* clean dns server information */
+        netdev->dns_servers->addr = 0;
+        ctlnetwork(CN_SET_NETINFO, (void *)&net_info);
+    }
     netdev_low_level_set_ipaddr(netdev, (const ip_addr_t *)&net_info.ip);
     netdev_low_level_set_gw(netdev, (const ip_addr_t *)&net_info.gw);
     netdev_low_level_set_netmask(netdev, (const ip_addr_t *)&net_info.sn);
@@ -600,17 +610,17 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
         {
         case DHCP_IP_ASSIGN:
         case DHCP_IP_CHANGED:
-        {            
-        	/* to update netdev information */
-    		wiz_netdev_info_update(netdev);
+        {
+            /* to update netdev information */
+            wiz_netdev_info_update(netdev, RT_FALSE);
             break;
         }
         case DHCP_IP_LEASED:
         {
             DHCP_stop();
             rt_timer_stop(dhcp_timer);
-			/* to update netdev information */
-    		wiz_netdev_info_update(netdev);			
+            /* to update netdev information */
+            wiz_netdev_info_update(netdev, RT_FALSE);
 			if (dhcp_work)
 			{
 				/* according to leaset time, config next DHCP produce */
@@ -703,12 +713,13 @@ static void wiz_link_status_thread_entry(void *parameter)
                 wiz_dhcp_work(RT_NULL, netdev);
 #endif
                 netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
-                wiz_netdev_info_update(netdev);
+                wiz_netdev_info_update(netdev, RT_FALSE);
                 LOG_I("%s netdev link status becomes link up", wiz_netdev_name);
             }
             else
             {
                 netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                wiz_netdev_info_update(netdev, RT_TRUE);
                 LOG_I("%s netdev link status becomes link down", wiz_netdev_name);
             }
         }
