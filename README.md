@@ -143,11 +143,11 @@ msh />wiz_ping baidu.com
   (wiz_device->parent.type == RT_Device_Class_SPIDevice) assertion failed at function:wiz_spi_init, line number:126
   ```
 
-  出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备名称填写不正确，请区分 SPI DEVICE 与 SPI BUS 的关系。如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中挂载 SPI 设备到SPI 总线，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
+  出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备名称填写不正确，请区分 SPI DEVICE 与 SPI BUS 的关系。如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中挂载 SPI 设备到 SPI 总线，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
 
 - WIZnet 软件包最新版本已支持作为 server 服务器模式（V1.1.0 版本之前不支持）。
 
-- WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，请先参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
+- WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，是因为没有挂在 winzet 设备到 SPI 总线导致的；请参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
 
 
 ## 5、注意事项
