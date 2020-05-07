@@ -1438,7 +1438,6 @@ struct hostent *wiz_gethostbyname(const char *name)
     static ip_addr_t s_hostent_addr;
     static ip_addr_t *s_phostent_addr[2];
     static char s_hostname[DNS_MAX_NAME_LENGTH + 1];
-    struct wiz_socket *sock = RT_NULL;
     size_t idx = 0;
 
     /* check WIZnet initialize status */
@@ -1460,25 +1459,24 @@ struct hostent *wiz_gethostbyname(const char *name)
     if (idx < rt_strlen(name))
     {
         int8_t ret = 0;
-        uint8_t remote_ip[4] = {0};	 
+        uint8_t remote_ip[4] = {0};
         uint8_t data_buffer[512];
 
         /* allocate and initialize a new WIZnet socket */
-        sock = alloc_socket();
-        if (sock == RT_NULL)
+        for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
+        if (idx >= WIZ_SOCKETS_NUM)
         {
             LOG_E("WIZnet DNS failed, socket number is full.");
             return RT_NULL;
         }
 
-		wiz_NetInfo net_info;   
-		ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+        wiz_NetInfo net_info;
+        ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
 
         /* DNS client initialize */
         DNS_init(idx, data_buffer);
         /* DNS client processing */
-        ret = DNS_run(dns_ip, (uint8_t *)name, remote_ip);
-        free_socket(sock);
+        ret = DNS_run(net_info.dns, (uint8_t *)name, remote_ip);
         if (ret == -1)
         {
             LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");
@@ -1602,7 +1600,6 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
             {
                 int8_t ret;
                 uint8_t remote_ip[4] = {0};
-                uint8_t dns_ip[4] = {114, 114, 114, 114};
                 uint8_t data_buffer[512];
 
                 for (idx = 0; idx < WIZ_SOCKETS_NUM && sockets[idx].magic; idx++);
@@ -1612,10 +1609,13 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                     return EAI_FAIL;
                 }
 
+                wiz_NetInfo net_info;
+                ctlnetwork(CN_GET_NETINFO, (void *)&net_info);
+
                 /* DNS client initialize */
                 DNS_init(idx, data_buffer);
                 /* DNS client processing */
-                ret = DNS_run(dns_ip, (uint8_t *)nodename, remote_ip);
+                ret = DNS_run(net_info.dns, (uint8_t *)nodename, remote_ip);
                 if (ret == -1)
                 {
                     LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");
