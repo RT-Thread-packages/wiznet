@@ -532,6 +532,7 @@ static int wiz_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     return result;
 }
 
+#ifdef RT_USING_FINSH
 static int wiz_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
     RT_ASSERT(netdev);
@@ -542,6 +543,7 @@ static int wiz_netdev_ping(struct netdev *netdev, const char *host, size_t data_
 
     return wiz_ping(netdev, host, data_len, timeout, ping_resp);
 }
+#endif
 
 void wiz_netdev_netstat(struct netdev *netdev)
 {
@@ -557,9 +559,10 @@ const struct netdev_ops wiz_netdev_ops =
     wiz_netdev_set_addr_info,
     wiz_netdev_set_dns_server,
     wiz_netdev_set_dhcp,
-
+#ifdef RT_USING_FINSH
     wiz_netdev_ping,
     wiz_netdev_netstat,
+#endif
 };
 
 static struct netdev *wiz_netdev_add(const char *netdev_name)
