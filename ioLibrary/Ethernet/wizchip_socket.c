@@ -117,6 +117,7 @@ int8_t wizchip_socket(uint8_t sn, uint8_t protocol, uint16_t port, uint8_t flag)
             uint32_t taddr;
             getSIPR((uint8_t*)&taddr);
             if(taddr == 0) return SOCKERR_SOCKINIT;
+	    break;
          }
       case Sn_MR_UDP :
       case Sn_MR_MACRAW :
@@ -306,7 +307,6 @@ int8_t wizchip_disconnect(uint8_t sn)
 	{
 	   if(getSn_IR(sn) & Sn_IR_TIMEOUT)
 	   {
-	      setSn_IR(sn, Sn_IR_TIMEOUT);
 	      wizchip_close(sn);
 	      return SOCKERR_TIMEOUT;
 	   }
@@ -344,7 +344,6 @@ int32_t wizchip_send(uint8_t sn, uint8_t * buf, uint16_t len)
       }
       else if(tmp & Sn_IR_TIMEOUT)
       {
-         setSn_IR(sn, Sn_IR_TIMEOUT);
          wizchip_close(sn);
          return SOCKERR_TIMEOUT;
       }
@@ -425,10 +424,6 @@ int32_t wizchip_recv(uint8_t sn, uint8_t * buf, uint16_t len)
             else
             {
                wizchip_close(sn);
-               if(recvsize != 0)
-               { 
-                   break;
-               } 		    
                return SOCKERR_SOCKSTATUS;
             }
          }
@@ -716,7 +711,7 @@ int32_t wizchip_recvfrom(uint8_t sn, uint8_t * buf, uint16_t len, uint8_t * addr
    			if(sock_remained_size[sn] > 1514) 
    			{
    			    wizchip_close(sn);
-   			    return SOCKFATAL_PACKLEN;
+   			   return SOCKFATAL_PACKLEN;
    			}
    			sock_pack_info[sn] = PACK_FIRST;
    	   }
@@ -864,7 +859,7 @@ int8_t  wizchip_setsockopt(uint8_t sn, sockopt_type sotype, void* arg)
          		}
             }
          break;
-   #if _WIZCHIP_ > 5200
+   #if !( (_WIZCHIP_ == 5100) || (_WIZCHIP_ == 5200) )
       case SO_KEEPALIVEAUTO:
          CHECK_SOCKMODE(Sn_MR_TCP);
          setSn_KPALVTR(sn,*(uint8_t*)arg);

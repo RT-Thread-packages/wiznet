@@ -149,6 +149,10 @@ msh />wiz_ping baidu.com
 
 - WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，是因为没有挂载 winzet 设备到 SPI 总线导致的；请参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
 
+- 在使用 RT-Thread 仓库的既往代码时，请比对 ```[components/net/sal_socket/src/sal_socket.c]```的内容，尤其是关于此处 [PR](https://github.com/RT-Thread/rt-thread/pull/3534/files) 的内容，注意 sal_closesocket 的内容。当你总是申请 socket(-1) 失败时，请确保你所使用的 RT-Thread 的代码是与该 [PR](https://github.com/RT-Thread/rt-thread/pull/3534/files) 的意图相符合的。
+
+- 当出现申请 socket 时错误为  ```0x22``` 错误，注意 wiznet 的开发分支处于 master 版本或者大于 V1.1.0 的版本。请留意  ```wiz_socket_init()```  的执行顺序，因为 ```sal_check_netdev_internet_up``` 联网检测函数，会主动申请 socket 以判断 w5500 是否具有网络能力，而网络状态变更会导致  ```sal_check_netdev_internet_up```  被调用，造成 ```0x22``` 错误。
+
 
 ## 5、注意事项
 

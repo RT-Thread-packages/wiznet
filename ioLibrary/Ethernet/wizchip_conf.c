@@ -418,10 +418,10 @@ void wizchip_sw_reset(void)
 
 int8_t wizchip_init(uint8_t* txsize, uint8_t* rxsize)
 {
-#if _WIZCHIP_ < W5200	// add condition for w5100
-    int8_t j;
+   int8_t i;
+#if _WIZCHIP_ < W5200
+   int8_t j;
 #endif
-    int8_t i;
    int8_t tmp = 0;
    wizchip_sw_reset();
    if(txsize)
@@ -521,7 +521,12 @@ void wizchip_clrinterrupt(intr_kind intr)
    setIR( ((((uint16_t)ir) << 8) | (((uint16_t)sir) & 0x00FF)) );
 #else
    setIR(ir);
-   setSIR(sir);
+//M20200227 : For clear
+   //setSIR(sir);
+   for(ir=0; ir<8; ir++){
+       if(sir & (0x01 <<ir) ) setSn_IR(ir, 0xff);
+   }
+
 #endif   
 }
 

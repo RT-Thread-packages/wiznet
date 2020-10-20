@@ -390,7 +390,7 @@ typedef enum
    SO_DESTPORT,         ///< Set the destination Port number. @ref Sn_DPORT ( @ref setSn_DPORT(), @ref getSn_DPORT() )
 #if _WIZCHIP_ != 5100   
    SO_KEEPALIVESEND,    ///< Valid only in setsockopt. Manually send keep-alive packet in TCP mode, Not supported in W5100
-   #if _WIZCHIP_ > 5200   
+   #if !( (_WIZCHIP_ == 5100) || (_WIZCHIP_ == 5200) )
       SO_KEEPALIVEAUTO, ///< Set/Get keep-alive auto transmission timer in TCP mode, Not supported in W5100, W5200
    #endif      
 #endif
