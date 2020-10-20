@@ -360,6 +360,7 @@ int wiz_socket(int domain, int type, int protocol)
     else
     {
         rt_memset(sock, 0x00, sizeof(struct wiz_socket));
+        LOG_E("socket(%d) is not closed(0x%x).", sock->socket, socket_state);
         return -1;
     }
     sock->state = SOCK_INIT;
