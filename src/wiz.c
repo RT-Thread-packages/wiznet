@@ -368,8 +368,8 @@ static int wiz_network_init(rt_bool_t b_config)
 #endif
 
     netdev_low_level_set_status(netdev, b_status);
-    netdev_low_level_set_link_status(netdev, b_status);
     wiz_netdev_info_update(netdev, RT_FALSE);
+    netdev_low_level_set_link_status(netdev, b_status);
 
     return result;
 }
@@ -715,6 +715,7 @@ static void wiz_link_status_thread_entry(void *parameter)
         {
             if (phycfgr & WIZ_PHYCFGR_LINK_STATUS)
             {
+                wiz_socket_init();
 #ifdef WIZ_USING_DHCP
                 wiz_dhcp_work(RT_NULL, netdev);
 #else
@@ -773,14 +774,14 @@ int wiz_init(void)
     {
         b_config = RT_FALSE;
     }
+    /* WIZnet socket initialize */
+    wiz_socket_init();
     /* WIZnet network initialize */
     result = wiz_network_init(b_config);
     if (result != RT_EOK)
     {
         goto __exit;
     }
-    /* WIZnet socket initialize */
-    wiz_socket_init();
 
     dns_tick_timer = rt_timer_create("dns_tick", wiz_dns_time_handler, RT_NULL, 1 * RT_TICK_PER_SECOND, RT_TIMER_FLAG_SOFT_TIMER | RT_TIMER_FLAG_PERIODIC);
     rt_timer_start(dns_tick_timer);
