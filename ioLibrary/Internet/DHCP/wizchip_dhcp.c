@@ -2,10 +2,11 @@
 //
 //! \file wizchip_dhcp.c
 //! \brief DHCP APIs implement file.
-//! \details Processig DHCP protocol as DISCOVER, OFFER, REQUEST, ACK, NACK and DECLINE.
-//! \version 1.1.0
-//! \date 2013/11/18
+//! \details Processing DHCP protocol as DISCOVER, OFFER, REQUEST, ACK, NACK and DECLINE.
+//! \version 1.1.1
+//! \date 2019/10/08
 //! \par  Revision history
+//!       <2019/10/08> compare DHCP server ip address
 //!       <2013/11/18> 1st Release
 //!       <2012/12/20> V1.1.0
 //!         1. Optimize code
@@ -52,7 +53,7 @@
 #include <wizchip_socket.h>
 #include "DHCP/wizchip_dhcp.h"
 
-/* If you want to display debug & procssing message, Define _DHCP_DEBUG_ in dhcp.h */
+/* If you want to display debug & processing message, Define _DHCP_DEBUG_ in dhcp.h */
 
 #ifdef _DHCP_DEBUG_
    #include <stdio.h>
@@ -65,7 +66,7 @@
 #define STATE_DHCP_LEASED        3        ///< ReceiveD ACK and IP leased
 #define STATE_DHCP_REREQUEST     4        ///< send REQUEST for maintaining leased IP
 #define STATE_DHCP_RELEASE       5        ///< No use
-#define STATE_DHCP_STOP          6        ///< Stop procssing DHCP
+#define STATE_DHCP_STOP          6        ///< Stop processing DHCP
 
 #define DHCP_FLAGSBROADCAST      0x8000   ///< The broadcast value of flags in @ref RIP_MSG 
 #define DHCP_FLAGSUNICAST        0x0000   ///< The unicast   value of flags in @ref RIP_MSG
@@ -192,6 +193,7 @@ typedef struct {
 uint8_t DHCP_SOCKET;                      // Socket number for DHCP
 
 uint8_t DHCP_SIP[4];                      // DHCP Server IP address
+uint8_t DHCP_REAL_SIP[4];                 // For extract my DHCP server in a few DHCP server
 
 // Network information from DHCP Server
 uint8_t OLD_allocated_ip[4]   = {0, };    // Previous IP address
@@ -245,7 +247,7 @@ int8_t   check_DHCP_leasedIP(void);
 /* check the timeout in DHCP process */
 uint8_t  check_DHCP_timeout(void);
 
-/* Intialize to timeout process.  */
+/* Initialize to timeout process.  */
 void     reset_DHCP_timeout(void);
 
 /* Parse message as OFFER and ACK and NACK from DHCP server.*/
@@ -259,7 +261,7 @@ void default_ip_assign(void)
    setGAR (DHCP_allocated_gw);
 }
 
-/* The default handler of ip chaged */
+/* The default handler of ip changed */
 void default_ip_update(void)
 {
 	/* WIZchip Software Reset */
@@ -269,7 +271,7 @@ void default_ip_update(void)
    setSHAR(DHCP_CHADDR);
 }
 
-/* The default handler of ip chaged */
+/* The default handler of ip changed */
 void default_ip_conflict(void)
 {
 	// WIZchip Software Reset
@@ -356,8 +358,16 @@ void send_DHCP_DISCOVER(void)
 	uint16_t k = 0;
    
    makeDHCPMSG();
+   DHCP_SIP[0]=0;
+   DHCP_SIP[1]=0;
+   DHCP_SIP[2]=0;
+   DHCP_SIP[3]=0;
+   DHCP_REAL_SIP[0]=0;
+   DHCP_REAL_SIP[1]=0;
+   DHCP_REAL_SIP[2]=0;
+   DHCP_REAL_SIP[3]=0;
 
-   k = 4;     // beacaue MAGIC_COOKIE already made by makeDHCPMSG()
+   k = 4;     // because MAGIC_COOKIE already made by makeDHCPMSG()
    
 	// Option Request Param
 	pDHCPMSG->OPT[k++] = dhcpMessageType;
@@ -380,10 +390,13 @@ void send_DHCP_DISCOVER(void)
 	pDHCPMSG->OPT[k++] = 0;          // fill zero length of hostname 
 	for(i = 0 ; HOST_NAME[i] != 0; i++)
    	pDHCPMSG->OPT[k++] = HOST_NAME[i];
-	pDHCPMSG->OPT[k++] = DHCP_CHADDR[3];
-	pDHCPMSG->OPT[k++] = DHCP_CHADDR[4];
-	pDHCPMSG->OPT[k++] = DHCP_CHADDR[5];
-	pDHCPMSG->OPT[k - (i+3+1)] = i+3; // length of hostname
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[3] >> 4); 
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[3]);
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[4] >> 4); 
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[4]);
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[5] >> 4); 
+	pDHCPMSG->OPT[k++] = NibbleToHex(DHCP_CHADDR[5]);
+	pDHCPMSG->OPT[k - (i+6+1)] = i+6; // length of hostname
 
 	pDHCPMSG->OPT[k++] = dhcpParamRequest;
 	pDHCPMSG->OPT[k++] = 0x06;	// length of request
@@ -440,7 +453,7 @@ void send_DHCP_REQUEST(void)
    	ip[3] = 255;   	   	   	
    }
    
-   k = 4;      // beacaue MAGIC_COOKIE already made by makeDHCPMSG()
+   k = 4;      // because MAGIC_COOKIE already made by makeDHCPMSG()
 	
 	// Option Request Param.
 	pDHCPMSG->OPT[k++] = dhcpMessageType;
@@ -518,7 +531,7 @@ void send_DHCP_DECLINE(void)
 	
 	makeDHCPMSG();
 
-   k = 4;      // beacaue MAGIC_COOKIE already made by makeDHCPMSG()
+   k = 4;      // because MAGIC_COOKIE already made by makeDHCPMSG()
    
 	*((uint8_t*)(&pDHCPMSG->flags))   = ((DHCP_FLAGSUNICAST & 0xFF00)>> 8);
 	*((uint8_t*)(&pDHCPMSG->flags)+1) = (DHCP_FLAGSUNICAST & 0x00FF);
@@ -578,7 +591,7 @@ int8_t parseDHCPMSG(void)
 
 	uint8_t * p;
 	uint8_t * e;
-	uint8_t type;
+	uint8_t type = 0;
 	uint8_t opt_len;
    
    if((len = getSn_RX_RSR(DHCP_SOCKET)) > 0)
@@ -594,8 +607,23 @@ int8_t parseDHCPMSG(void)
 		if ( (pDHCPMSG->chaddr[0] != DHCP_CHADDR[0]) || (pDHCPMSG->chaddr[1] != DHCP_CHADDR[1]) ||
 		     (pDHCPMSG->chaddr[2] != DHCP_CHADDR[2]) || (pDHCPMSG->chaddr[3] != DHCP_CHADDR[3]) ||
 		     (pDHCPMSG->chaddr[4] != DHCP_CHADDR[4]) || (pDHCPMSG->chaddr[5] != DHCP_CHADDR[5])   )
+		{
+#ifdef _DHCP_DEBUG_
+            printf("No My DHCP Message. This message is ignored.\r\n");
+#endif
          return 0;
-      type = 0;
+		}
+        //compare DHCP server ip address
+        if((DHCP_SIP[0]!=0) || (DHCP_SIP[1]!=0) || (DHCP_SIP[2]!=0) || (DHCP_SIP[3]!=0)){
+            if( ((svr_addr[0]!=DHCP_SIP[0])|| (svr_addr[1]!=DHCP_SIP[1])|| (svr_addr[2]!=DHCP_SIP[2])|| (svr_addr[3]!=DHCP_SIP[3])) &&
+                ((svr_addr[0]!=DHCP_REAL_SIP[0])|| (svr_addr[1]!=DHCP_REAL_SIP[1])|| (svr_addr[2]!=DHCP_REAL_SIP[2])|| (svr_addr[3]!=DHCP_REAL_SIP[3]))  )
+            {
+#ifdef _DHCP_DEBUG_
+                printf("Another DHCP sever send a response message. This is ignored.\r\n");
+#endif
+                return 0;
+            }
+        }
 		p = (uint8_t *)(&pDHCPMSG->op);
 		p = p + 240;      // 240 = sizeof(RIP_MSG) + MAGIC_COOKIE size in RIP_MSG.opt - sizeof(RIP_MSG.opt)
 		e = p + (len - 240);
@@ -659,6 +687,10 @@ int8_t parseDHCPMSG(void)
    				DHCP_SIP[1] = *p++;
    				DHCP_SIP[2] = *p++;
    				DHCP_SIP[3] = *p++;
+                DHCP_REAL_SIP[0]=svr_addr[0];
+                DHCP_REAL_SIP[1]=svr_addr[1];
+                DHCP_REAL_SIP[2]=svr_addr[2];
+                DHCP_REAL_SIP[3]=svr_addr[3];
    				break;
    			default :
    				p++;
@@ -901,7 +933,7 @@ void DHCP_init(uint8_t s, uint8_t * buf)
    getSHAR(DHCP_CHADDR);
    if((DHCP_CHADDR[0] | DHCP_CHADDR[1]  | DHCP_CHADDR[2] | DHCP_CHADDR[3] | DHCP_CHADDR[4] | DHCP_CHADDR[5]) == 0x00)
    {
-      // assing temporary mac address, you should be set SHAR before call this function. 
+      // assigning temporary mac address, you should be set SHAR before call this function. 
       DHCP_CHADDR[0] = 0x00;
       DHCP_CHADDR[1] = 0x08;
       DHCP_CHADDR[2] = 0xdc;      
@@ -914,7 +946,12 @@ void DHCP_init(uint8_t s, uint8_t * buf)
 	DHCP_SOCKET = s; // SOCK_DHCP
 	pDHCPMSG = (RIP_MSG*)buf;
 	DHCP_XID = 0x12345678;
-
+	{
+		DHCP_XID += DHCP_CHADDR[3];
+		DHCP_XID += DHCP_CHADDR[4];
+		DHCP_XID += DHCP_CHADDR[5];
+		DHCP_XID += (DHCP_CHADDR[3] ^ DHCP_CHADDR[4] ^ DHCP_CHADDR[5]);
+	}
 	// WIZchip Netinfo Clear
 	setSIPR(zeroip);
 	setGAR(zeroip);
@@ -924,7 +961,7 @@ void DHCP_init(uint8_t s, uint8_t * buf)
 }
 
 
-/* Rset the DHCP timeout count and retry count. */
+/* Reset the DHCP timeout count and retry count. */
 void reset_DHCP_timeout(void)
 {
 	dhcp_tick_1s = 0;

@@ -3,9 +3,10 @@
 //! \file wizchip_dhcp.h
 //! \brief DHCP APIs Header file.
 //! \details Processig DHCP protocol as DISCOVER, OFFER, REQUEST, ACK, NACK and DECLINE.
-//! \version 1.1.0
-//! \date 2013/11/18
+//! \version 1.1.1
+//! \date 2019/10/08
 //! \par  Revision history
+//!       <2019/10/08> compare DHCP server ip address
 //!       <2013/11/18> 1st Release
 //!       <2012/12/20> V1.1.0
 //!         1. Move unreferenced DEFINE to dhcp.c
@@ -50,16 +51,15 @@ extern "C" {
 
 /*
  * @brief 
- * @details If you want to display debug & procssing message, Define _DHCP_DEBUG_ 
- * @note    If defined, it dependens on <stdio.h>
+ * @details If you want to display debug & processing message, Define _DHCP_DEBUG_ 
+ * @note    If defined, it depends on <stdio.h>
  */
 //#define _DHCP_DEBUG_
 
 
 /* Retry to processing DHCP */
-#define	MAX_DHCP_RETRY          2        ///< Maxium retry count
-/* WIZnet package change DHCP timeout */
-#define	DHCP_WAIT_TIME          1       ///< Wait Time 1s
+#define	MAX_DHCP_RETRY          2        ///< Maximum retry count
+#define	DHCP_WAIT_TIME          10       ///< Wait Time 10s
 
 
 /* UDP port numbers for DHCP */
@@ -76,18 +76,18 @@ extern "C" {
  */
 enum
 {
-   DHCP_FAILED = 0,  ///< Procssing Fail
-   DHCP_RUNNING,     ///< Procssing DHCP proctocol
+   DHCP_FAILED = 0,  ///< Processing Fail
+   DHCP_RUNNING,     ///< Processing DHCP protocol
    DHCP_IP_ASSIGN,   ///< First Occupy IP from DHPC server      (if cbfunc == null, act as default default_ip_assign)
    DHCP_IP_CHANGED,  ///< Change IP address by new ip from DHCP (if cbfunc == null, act as default default_ip_update)
    DHCP_IP_LEASED,   ///< Stand by 
-   DHCP_STOPPED      ///< Stop procssing DHCP protocol
+   DHCP_STOPPED      ///< Stop processing DHCP protocol
 };
 
 /*
  * @brief DHCP client initialization (outside of the main loop)
  * @param s   - socket number
- * @param buf - buffer for procssing DHCP message
+ * @param buf - buffer for processing DHCP message
  */
 void DHCP_init(uint8_t s, uint8_t * buf);
 
@@ -101,7 +101,7 @@ void DHCP_time_handler(void);
  * @brief Register call back function 
  * @param ip_assign   - callback func when IP is assigned from DHCP server first
  * @param ip_update   - callback func when IP is changed
- * @prarm ip_conflict - callback func when the assigned IP is conflict with others.
+ * @param ip_conflict - callback func when the assigned IP is conflict with others.
  */
 void reg_dhcp_cbfunc(void(*ip_assign)(void), void(*ip_update)(void), void(*ip_conflict)(void));
 
@@ -120,7 +120,7 @@ void reg_dhcp_cbfunc(void(*ip_assign)(void), void(*ip_update)(void), void(*ip_co
 uint8_t DHCP_run(void);
 
 /*
- * @brief Stop DHCP procssing
+ * @brief Stop DHCP processing
  * @note If you want to restart. call DHCP_init() and DHCP_run()
  */ 
 void    DHCP_stop(void);
@@ -149,7 +149,7 @@ void getDNSfromDHCP(uint8_t* ip);
 
 /*
  * @brief Get the leased time by DHCP sever
- * @retrun unit 1s
+ * @return unit 1s
  */
 uint32_t getDHCPLeasetime(void);
 
