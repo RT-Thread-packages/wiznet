@@ -1,129 +1,128 @@
 # WIZnet
 
-## 1、介绍
+[中文页](README_ZH.md) | English
 
-WIZnet 软件包是 RT-Thread 基于 WIZnet 官网 [ioLibrary_Driver](https://github.com/Wiznet/ioLibrary_Driver) 代码库的移植实现，目前只支持 W5500 设备。该软件包在原代码库功能的基础上，对接 RT-Thread SAL 套接字抽象层，实现对标准 BSD Socket APIs 的支持，完美的兼容多种软件包和网络功能实现，提高 WIZnet 设备兼容性。
+## 1. Introduction
 
-### 1.1 目录结构
+The WIZnet software package is a porting implementation of RT-Thread based on the WIZnet official website [ioLibrary_Driver](https://github.com/Wiznet/ioLibrary_Driver) code base, and currently only supports W5500 devices. On the basis of the original code library function, this software package docks with the RT-Thread SAL socket abstraction layer, realizes the support for standard BSD Socket APIs, is perfectly compatible with a variety of software packages and network functions, and improves the compatibility of WIZnet devices.
 
-WIZnet 软件包目录结构如下所示：
+### 1.1 Directory structure
+
+The WIZnet software package directory structure is as follows:
 
 ```
 wiznet
-├───inc                             // RT_Thread 移植头文件
-├───iolibrary                       // WIZnet 官方库文件
-│   └───Ethernet                    // WIZnet 官方 Socket APIs 和 WIZCHIP 驱动
-│   │	└───W5500                   // WIZCHIP 驱动
-│   │   wizchip_conf.c              // Socket 配置文件
-│   │   wizchip_socket.c            // Socket APIs 文件
-│   └───Internet                    // WIZnet 官方网络功能实现
-│   │	└───DHCP                    // DHCP 功能实现
-│   └───────DNS                     // DNS 功能实现
-├───src                             // RT_Thread 移植源码文件
-│   └───wiz_af_inet.c               // WIZnet BSD Socket 注册到 SAL
-│   │	wiz_device.c                // WIZnet 设备初始化
-│   │   wiz_ping.c                  // WIZnet 设备 Ping 命令实现
-│   │	wiz_socket.c                // WIZnet BSD Socket APIs 实现
-│   └───wiz.c                       // WIZnet 初始化（设备初始化、网络初始化）
-│   LICENSE                         // 软件包许可证
-│   README.md                       // 软件包使用说明
-└───SConscript                      // RT-Thread 默认的构建脚本
+├───inc           // RT_Thread transplant header file
+├───iolibrary     // WIZnet official library file
+│ └───Ethernet    // WIZnet official Socket APIs and WIZCHIP driver
+│ │ └───W5500     // WIZCHIP driver
+│ │ wizchip_conf.c // Socket configuration file
+│ │ wizchip_socket.c // Socket APIs file
+│ └───Internet // WIZnet official network function realization
+│ │ └───DHCP // DHCP function implementation
+│ └───────DNS // DNS function realization
+├───src // RT_Thread transplant source code file
+│ └───wiz_af_inet.c // WIZnet BSD Socket registered to SAL
+│ │ wiz_device.c // WIZnet device initialization
+│ │ wiz_ping.c // WIZnet device Ping command realization
+│ │ wiz_socket.c // WIZnet BSD Socket APIs implementation
+│ └───wiz.c // WIZnet initialization (device initialization, network initialization)
+│ LICENSE // package license
+│ README.md // Software package instructions
+└───SConscript // RT-Thread default build script
 ```
 
 
-### 1.2 许可证
+### 1.2 License
 
-WIZnet 软件包遵循 Apache-2.0 许可，详见 LICENSE 文件。
+The WIZnet software package complies with the Apache-2.0 license, see the LICENSE file for details.
 
-### 1.3 依赖
+### 1.3 Dependency
 
 - RT-Thread 4.0.1+
-- SAL 组件
-- netdev 组件
-- SPI 驱动：WIZnet 设备使用  SPI 进行数据通讯，需要系统 SPI 驱动框架支持；
-- PIN 驱动：用于处理设备复位和中断引脚；
+- SAL component
+- netdev component
+- SPI driver: WIZnet devices use SPI for data communication, which requires the support of the system SPI driver framework;
+- PIN driver: used to handle device reset and interrupt pins;
 
-## 2、获取软件包
+## 2. Get the software package
 
-使用 WIZnet 软件包需要在 RT-Thread 的包管理中选中它，具体路径如下：
+To use the WIZnet software package, you need to select it in the RT-Thread package management. The specific path is as follows:
 
 ```shell
 WIZnet: WIZnet TCP/IP chips SAL framework implement
-        WIZnet device type (W5500)  --->
-        WIZnet device configure  --->
+        WIZnet device type (W5500) --->
+        WIZnet device configure --->
             (spi30) SPI device name
             (10) Reset PIN number
             (11) IRQ PIN number
-  [ ]   Enable alloc IP address through DHCP
-            WIZnet network configure  --->
+  [] Enable alloc IP address through DHCP
+            WIZnet network configure --->
                 (192.168.1.10) IPv4: IP address
                 (192.168.1.1) IPv4: Gateway address
                 (255.255.255.0) IPv4: Mask address
-  [ ]   Enable Ping utility
-  [ ]   Enable debug log output
-        Version (latest)  --->
+  [] Enable Ping utility
+  [] Enable debug log output
+        Version (latest) --->
 ```
 
-**WIZnet device type** ：配置支持的设备类型（目前只支持 W5500 设备 ）
+**WIZnet device type**: Configure the supported device type (currently only supports W5500 devices)
 
-**WIZnet device configure** ：配置使用设备的参数
+**WIZnet device configure**: configure the parameters of the device used
 
-- **SPI device name**：配置使用 SPI 的设备名称（注意需设置为**非 SPI 总线设备**）
+- **SPI device name**: Configure the name of the device using SPI (note that it needs to be set to **non-SPI bus device**)
 
-- **Reset PIN number**：配置设备连接的复位引脚号（根据实际使用引脚号修改）
+- **Reset PIN number**: Configure the reset pin number connected to the device (modified according to the actual pin number used)
 
-- **IRQ PIN number**：配置设备连接的中断引脚号（同上）
+- **IRQ PIN number**: Configure the interrupt pin number of the device connection (same as above)
 
-**Enable alloc IP address through DHCP**： 配置是否使用 DHCP 分配 IP 地址（默认开启）
+**Enable alloc IP address through DHCP**: Configure whether to use DHCP to allocate IP addresses (enabled by default)
 
-**WIZnet network configure**：如果不开启 DHCP 功能，需要配置静态连接的 IP 地址、网关和子网掩码
+**WIZnet network configure**: If you do not enable the DHCP function, you need to configure the statically connected IP address, gateway and subnet mask
 
-**Enable Ping utility**： 配置开启 Ping 命令 （默认开启）
+**Enable Ping utility**: Configure to enable Ping command (enabled by default)
 
-**Enable debug log output**：配置开启调试日志显示
+**Enable debug log output**: Configure to enable debug log display
 
-**Version**：软件包版本选择
+**Version**: software package version selection
 
-## 3、使用软件包
+## 3. Use the software package
 
-WIZnet 软件包初始化函数如下所示：
+The initialization function of WIZnet software package is as follows:
 
 ```c
-int wiz_init（void）；
+int wiz_init(void);
 ```
 
-该函数支持组件初始化，如果开启组件自动初始化功能，则应用层无需在调用该函数 ，函数主要完成功能有，
+This function supports component initialization. If the automatic component initialization function is enabled, the application layer does not need to call this function. The main functions of the function are:
 
-- 设置默认 MAC 地址；
+- Set the default MAC address;
+- Device configuration and initialization (configure SPI device, configure reset and interrupt pins);
+- Network configuration and initialization (DHCP allocation of IP address, configuration of socket parameters);
+- Register the implemented BSD Socket APIs to the SAL socket abstraction layer to complete WIZnet device adaptation;
 
-- 设备配置和初始化（配置 SPI 设备，配置复位和中断引脚）；
-
-- 网络配置和初始化（DHCP 分配 IP 地址，配置 socket 参数 ）；
-
-- 注册实现的 BSD Socket APIs 到 SAL 套接字抽象层中，完成 WIZnet 设备适配；
-
-每个 WIZnet 设备需要唯一的 MAC 地址，用户可以在应用层程序中调用如下函数设置 WIZnet 设备 MAC 地址，如果不调用该函数，设备将使用默认的 MAC 地址，默认 MAC 地址为 `00-E0-81-DC-53-1A`（注意：同一个局域网中如果存在相同 MAC 地址的设备，可能导致设备网络异常） 。
+Each WIZnet device needs a unique MAC address. The user can call the following function in the application layer program to set the MAC address of the WIZnet device. If this function is not called, the device will use the default MAC address. The default MAC address is `00-E0-81 -DC-53-1A` (Note: If there are devices with the same MAC address in the same LAN, it may cause the device network to be abnormal).
 
 ```c
 int wiz_set_mac(const char *mac);
 ```
 
-设备上电初始化完成，设置设备 MAC 地址成功，然后可以在 FinSH 中输入命令 `wiz_ifconfig` 查看设备 IP 地址、MAC 地址等网络信息，如下所示：
+After the device is powered on and initialized, the device's MAC address is successfully set, and then you can enter the command `wiz_ifconfig` in FinSH to view the device's IP address, MAC address and other network information, as shown below:
 
 ```shell
 msh />ifconfig
-network interface device: W5500 (Default)        ## 设备名称
-MTU: 1472                                        ## 网络最大传输单元
-MAC: 00 e0 81 dc 53 1a                           ## 设备 MAC 地址
-FLAGS: UP LINK_UP INTERNET_UP                    ## 设备标志
-ip address: 192.168.12.26                        ## 设备 IP 地址
-gw address: 192.168.10.1                         ## 设备网关地址
-net mask  : 255.255.0.0                          ## 设备子网掩码
-dns server #0: 192.168.10.1                      ## 域名解析服务器地址0
-dns server #1: 0.0.0.0                           ## 域名解析服务器地址1
+network interface device: W5500 (Default)    ## Device name
+MTU: 1472                                    ## Network maximum transmission unit
+MAC: 00 e0 81 dc 53 1a                       ## Device MAC address
+FLAGS: UP LINK_UP INTERNET_UP                ## Device flag
+ip address: 192.168.12.26                    ## Device IP address
+gw address: 192.168.10.1                     ## Device gateway address
+net mask: 255.255.0.0                        ## Device subnet mask
+dns server #0: 192.168.10.1                  ## DNS server address 0
+dns server #1: 0.0.0.0                       ## DNS server address 1
 ```
 
-获取 IP 地址成功之后，如果开启 Ping 命令功能，可以在 FinSH 中输入命令 `ping + 域名地址` 测试网络连接状态， 如下所示：
+After obtaining the IP address successfully, if the Ping command function is enabled, you can enter the command `ping + domain name address` in FinSH to test the network connection status, as shown below:
 
 ```shell
 msh />wiz_ping baidu.com
@@ -133,33 +132,33 @@ msh />wiz_ping baidu.com
 32 bytes from 220.181.57.216 icmp_seq=3 ttl=128 time=32 ticks
 ```
 
-`ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、MbedTLS、NTP、Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
+The normal test of the `ping` command indicates that the WIZnet device is successfully connected to the network, and then you can use the standard BSD Socket APIs abstracted by SAL (Socket Abstraction Layer) for network development (MQTT, HTTP, MbedTLS, NTP, Iperf, etc.), WIZnet software package The supported protocol cluster types are: the primary protocol cluster is **AF_WIZ**, and the secondary protocol cluster is **AF_INET** (for specific differences and usage, please refer to [SAL Programming Guide](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ).
 
-## 4、常见问题
+## 4. Common problems
 
-- SPI 设备初始化时断言问题
+- Assertion problem during SPI device initialization
 
   ```shell
   (wiz_device->parent.type == RT_Device_Class_SPIDevice) assertion failed at function:wiz_spi_init, line number:126
   ```
 
-  出现上述断言问题，可能原因是 ENV 中配置 WIZnet 使用的 SPI 设备名称填写不正确，请区分 SPI DEVICE 与 SPI BUS 的关系。如果 BSP 工程中没有 SPI 设备或者只有 SPI 总线设备，需要手动在驱动中挂载 SPI 设备到 SPI 总线，并正确配置 WIZnet 软件包中使用的 SPI 设备名称。
+  The above assertion problem occurs. The possible reason is that the name of the SPI device used by WIZnet in ENV is incorrectly filled. Please distinguish the relationship between SPI DEVICE and SPI BUS. If there is no SPI device or only SPI bus device in the BSP project, you need to manually mount the SPI device to the SPI bus in the driver and correctly configure the SPI device name used in the WIZnet software package.
 
-- WIZnet 软件包最新版本已支持作为 server 服务器模式（V1.1.0 版本之前不支持）。
+- The latest version of WIZnet software package has been supported as a server server mode (not supported before V1.1.0).
 
-- WIZNet 软件包初始化出现 ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.```错误，是因为没有挂载 winzet 设备到 SPI 总线导致的；请参考 wiz_init 函数中的注释，解决软件包初始化失败的问题。
+- WIZNet software package initialization error ```[E/wiz.dev] You should attach [wiznet] into SPI bus firstly.``` error is caused by not mounting the winzet device to the SPI bus; please refer to the wiz_init function Note to solve the problem of package initialization failure.
 
-- 在使用 RT-Thread 仓库的既往代码时，请比对 ```[components/net/sal_socket/src/sal_socket.c]```的内容，尤其是关于此处 [PR](https://github.com/RT-Thread/rt-thread/pull/3534/files) 的内容，注意 sal_closesocket 的内容。当你总是申请 socket(-1) 失败时，请确保你所使用的 RT-Thread 的代码是与该 [PR](https://github.com/RT-Thread/rt-thread/pull/3534/files) 的意图相符合的。
+- When using the previous code in the RT-Thread repository, please compare ```[components/net/sal_socket/src/sal_socket.c]```, especially about the content of [PR](https://github.com/RT-Thread/rt-thread/pull/3534/files), pay attention to the content of sal_closesocket . When you always fail to apply for socket(-1), please make sure that the RT-Thread code you are using is the same as the [PR](https://github.com/RT-Thread/rt-thread/pull/3534 /files).
 
-- 当出现申请 socket 时错误为  ```0x22``` 错误，注意 wiznet 的开发分支处于 master 版本或者大于 V1.1.0 的版本。请留意  ```wiz_socket_init()```  的执行顺序，因为 ```sal_check_netdev_internet_up``` 联网检测函数，会主动申请 socket 以判断 w5500 是否具有网络能力，而网络状态变更会导致  ```sal_check_netdev_internet_up```  被调用，造成 ```0x22``` 错误。
+- When applying for a socket, the error is ```0x22```. Note that the development branch of wiznet is in the master version or a version greater than V1.1.0. Please pay attention to the execution order of ```wiz_socket_init()```, because the ```sal_check_netdev_internet_up``` networking detection function will actively apply for a socket to determine whether the w5500 has network capabilities, and network status changes will cause ```sal_check_netdev_internet_up``` was called, causing ```0x22``` error.
 
 
-## 5、注意事项
+## 5. Matters needing attention
 
-- 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号；
-- 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
+- When obtaining the software package, you need to pay attention to the correct configuration of the SPI device name, reset pin number and interrupt pin number used;
+- After the initialization is complete, it is recommended to use the `wiz_set_mac()` function to set the device MAC address to prevent conflicts with the default MAC address;
 
-## 6、联系方式 & 感谢
+## 6. Contact & Thanks
 
-- 维护：RT-Thread 开发团队
-- 主页：https://github.com/RT-Thread-packages/wiznet
+- Maintenance: RT-Thread development team
+- Homepage: https://github.com/RT-Thread-packages/wiznet
