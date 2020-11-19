@@ -50,7 +50,7 @@ static char wiz_netdev_name[WIZ_ID_LEN];
 #define WIZ_DHCP_SOCKET                7
 
 extern struct rt_spi_device *wiz_device;
-extern int wiz_device_init(const char *spi_dev_name, rt_base_t rst_pin, rt_base_t isr_pin);
+extern int wiz_device_init(const char *spi_dev_name);
 extern int wiz_inet_init(void);
 static int wiz_netdev_info_update(struct netdev *netdev, rt_bool_t reset);
 
@@ -61,6 +61,85 @@ static rt_timer_t  dns_tick_timer;
 #ifdef WIZ_USING_DHCP
 static rt_timer_t  dhcp_timer;
 #endif
+extern int wiz_recv_notice_cb(int socket);
+extern int wiz_closed_notice_cb(int socket);
+
+static rt_mailbox_t wiz_rx_mb = RT_NULL;
+
+static void wiz_isr(void)
+{
+    /* enter interrupt */
+    rt_interrupt_enter();
+
+    rt_mb_send(wiz_rx_mb, (rt_ubase_t) wiz_device);
+
+    /* leave interrupt */
+    rt_interrupt_leave();
+}
+
+static void wiz_data_thread_entry(void *parameter)
+{
+#define IR_SOCK(ch)         (0x01 << ch)   /**< check socket interrupt */
+
+    struct rt_spi_device* dev;
+
+    while (1)
+    {
+        if (rt_mb_recv(wiz_rx_mb, (rt_ubase_t*) &dev, RT_WAITING_FOREVER) == RT_EOK)
+        {
+            uint8_t ir, sir, sn_ir;
+            int8_t socket = -1;
+
+            /* get IR data than clean IR */
+            ir = getIR();
+            setIR(ir);
+
+            if ((ir & IR_CONFLICT) == IR_CONFLICT)
+            {
+                setIR(IR_CONFLICT);
+            }
+
+            if ((ir & IR_UNREACH) == IR_UNREACH)
+            {
+                setIR(IR_UNREACH);
+            }
+
+            /* get and process socket interrupt register */
+            sir = getSIR();
+
+            for (socket = 0; socket < 8; socket++)
+            {
+                sn_ir = 0;
+
+                if (sir & IR_SOCK(socket))
+                {
+                    /* save interrupt value*/
+                    sn_ir = getSn_IR(socket);
+
+                    if (sn_ir & Sn_IR_CON)
+                    {
+                        setSn_IR(socket, Sn_IR_CON);
+                    }
+                    if (sn_ir & Sn_IR_DISCON)
+                    {
+                        wiz_closed_notice_cb(socket);
+                        setSn_IR(socket, Sn_IR_DISCON);
+                    }
+                    if (sn_ir & Sn_IR_RECV)
+                    {
+                        wiz_recv_notice_cb(socket);
+                        setSn_IR(socket, Sn_IR_RECV);
+                    }
+                    if (sn_ir & Sn_IR_TIMEOUT)
+                    {
+                        /* deal with timeout event in the wiznet ioLibrary */
+                        //setSn_IR(socket, Sn_IR_TIMEOUT);
+                    }
+                }
+            }
+        }
+    }
+}
 
 static void spi_write_byte(uint8_t data)
 {
@@ -739,6 +818,33 @@ static void wiz_link_status_thread_entry(void *parameter)
     }
 }
 
+static int wiz_interrupt_init(rt_base_t isr_pin)
+{
+    rt_thread_t tid;
+
+    /* initialize RX mailbox */
+    wiz_rx_mb = rt_mb_create("wiz_mb", WIZ_RX_MBOX_NUM, RT_IPC_FLAG_FIFO);
+    if (wiz_rx_mb == RT_NULL)
+    {
+        LOG_E("WIZnet create receive data mailbox error.");
+        return -RT_ENOMEM;
+    }
+
+    /* create WIZnet SPI RX thread  */
+    tid = rt_thread_create("wiz", wiz_data_thread_entry, RT_NULL, 512, RT_THREAD_PRIORITY_MAX / 6, 20);
+    if (tid != RT_NULL)
+    {
+        rt_thread_startup(tid);
+    }
+
+    /* initialize interrupt pin */
+    rt_pin_mode(isr_pin, PIN_MODE_INPUT_PULLUP);
+    rt_pin_attach_irq(isr_pin, PIN_IRQ_MODE_FALLING, (void (*)(void*)) wiz_isr, RT_NULL);
+    rt_pin_irq_enable(isr_pin, PIN_IRQ_ENABLE);
+
+    return 0;
+}
+
 /* #include "stm32f4xx_hal.h" */
 /* WIZnet initialize device and network */
 int wiz_init(void)
@@ -753,11 +859,14 @@ int wiz_init(void)
         return RT_EOK;
     }
 
+        /* initialize reset pin */
+    rt_pin_mode(WIZ_RST_PIN, PIN_MODE_OUTPUT);
+
     /* I think you can attach w5500 into spi bus at here. You can use this function to realize.*/
     /* extern rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, GPIO_TypeDef *cs_gpiox, uint16_t cs_gpio_pin); */
 
     /* WIZnet SPI device and pin initialize */
-    result = wiz_device_init(WIZ_SPI_DEVICE, WIZ_RST_PIN, WIZ_IRQ_PIN);
+    result = wiz_device_init(WIZ_SPI_DEVICE);
     if (result != RT_EOK)
     {
         goto __exit;
@@ -795,6 +904,8 @@ int wiz_init(void)
     {
         rt_thread_startup(tid);
     }
+
+    wiz_interrupt_init(WIZ_IRQ_PIN);
 
 __exit:
     if (result == RT_EOK)
