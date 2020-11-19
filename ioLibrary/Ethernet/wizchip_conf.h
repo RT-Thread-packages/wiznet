@@ -420,6 +420,7 @@ typedef enum
 typedef struct wiz_NetInfo_t
 {
    uint8_t mac[6];  ///< Source Mac Address
+   uint8_t _pad[2]; ///< avoid 'non-aligned exception' in some cpu. @20201109
    uint8_t ip[4];   ///< Source IP Address
    uint8_t sn[4];   ///< Subnet Mask 
    uint8_t gw[4];   ///< Gateway IP Address
