@@ -845,6 +845,20 @@ static int wiz_interrupt_init(rt_base_t isr_pin)
     return 0;
 }
 
+static int wiz_is_exist(void)
+{
+    wiz_NetInfo ni;
+    int ret;
+
+    wiz_set_mac();
+    ctlnetwork(CN_SET_NETINFO, (void *)&wiz_net_info);
+    ctlnetwork(CN_GET_NETINFO, (void *)&ni);
+
+    ret = rt_memcmp(wiz_net_info.mac, ni.mac, sizeof(ni.mac));
+
+    return (ret == 0);
+}
+
 /* #include "stm32f4xx_hal.h" */
 /* WIZnet initialize device and network */
 int wiz_init(void)
@@ -872,14 +886,22 @@ int wiz_init(void)
         goto __exit;
     }
 
-    /* Add wiz to the netdev list */
-    ctlwizchip(CW_GET_ID, (void *)wiz_netdev_name);
-    wiz_netdev_add(wiz_netdev_name);
-
     /* WIZnet SPI device reset */
     wiz_reset();
     /* set WIZnet device read/write data callback */
     wiz_callback_register();
+
+    if (!wiz_is_exist())
+    {
+        result = -1;
+        LOG_E("Wiznet chip not detected");
+        goto __exit;
+    }
+
+    /* Add wiz to the netdev list */
+    ctlwizchip(CW_GET_ID, (void *)wiz_netdev_name);
+    wiz_netdev_add(wiz_netdev_name);
+
     /* WIZnet chip configure initialize */
     result = wiz_chip_cfg_init();
     if (result != RT_EOK)
