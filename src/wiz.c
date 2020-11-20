@@ -797,7 +797,7 @@ static void wiz_link_status_thread_entry(void *parameter)
                 LOG_I("%s netdev link status becomes link down", wiz_netdev_name);
             }
         }
-        rt_thread_mdelay(1000);
+        rt_thread_mdelay(4000);
     }
 }
 
