@@ -26,6 +26,10 @@
 
 struct rt_spi_device *wiz_device = RT_NULL;
 
+#ifndef WIZ_SPI_FREQ_MAX
+#define WIZ_SPI_FREQ_MAX 10000000
+#endif
+
 static int wiz_spi_init(const char *spi_dev_name)
 {
     RT_ASSERT(spi_dev_name);
@@ -50,7 +54,7 @@ static int wiz_spi_init(const char *spi_dev_name)
         struct rt_spi_configuration cfg;
         cfg.data_width = 8;
         cfg.mode = RT_SPI_MASTER | RT_SPI_MODE_0 | RT_SPI_MSB;  /* SPI Compatible Modes 0 */
-        cfg.max_hz = 40 * 1000 * 1000;                          /* SPI Interface with Clock Speeds Up to 40 MHz */
+        cfg.max_hz = WIZ_SPI_FREQ_MAX;                          /* SPI Interface with Clock Speeds Up to 40 MHz */
         rt_spi_configure(wiz_device, &cfg);
     }
 
