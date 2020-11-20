@@ -253,25 +253,6 @@ static int wiz_chip_cfg_init(void)
         return -RT_ERROR;
     }
 
-    start_tick = rt_tick_get();
-    do
-    {
-        now_tick = rt_tick_get();
-        if (now_tick - start_tick > CW_INIT_TIMEOUT)
-        {
-            LOG_E("WIZnet chip configure initialize timeout.");
-            return -RT_ETIMEOUT;
-        }
-
-        /* waiting for link status online */
-        if (ctlwizchip(CW_GET_PHYLINK, (void*) &phy_status) == -1)
-        {
-            LOG_E("Unknown PHY Link stauts.");
-        }
-
-        rt_thread_mdelay(100);
-    } while (phy_status == PHY_LINK_OFF);
-
     return RT_EOK;
 }
 
@@ -864,7 +845,6 @@ static int wiz_is_exist(void)
 int wiz_init(void)
 {
     int result = RT_EOK;
-    rt_bool_t b_config = RT_TRUE;
     rt_thread_t tid;
 
     if (wiz_init_ok == RT_TRUE)
@@ -903,15 +883,12 @@ int wiz_init(void)
     wiz_netdev_add(wiz_netdev_name);
 
     /* WIZnet chip configure initialize */
-    result = wiz_chip_cfg_init();
-    if (result != RT_EOK)
-    {
-        b_config = RT_FALSE;
-    }
+    wiz_chip_cfg_init();
+
     /* WIZnet socket initialize */
     wiz_socket_init();
     /* WIZnet network initialize */
-    result = wiz_network_init(b_config);
+    result = wiz_network_init(0);
     if (result != RT_EOK)
     {
         goto __exit;
