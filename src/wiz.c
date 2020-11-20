@@ -664,7 +664,7 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
     struct netdev *netdev = (struct netdev *)dhcp_work_data;
 
     uint8_t dhcp_times = 0;
-    uint8_t data_buffer[1024];
+    static uint8_t data_buffer[1024];
     uint32_t dhcp_status = 0;
 
     rt_timer_start(dhcp_timer);
@@ -749,7 +749,9 @@ static int wiz_network_dhcp(struct netdev *netdev)
     if (dhcp_work == RT_NULL)
         return -RT_ENOMEM;
 
-    wiz_dhcp_work(dhcp_work, netdev);
+    rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
+    rt_work_submit(dhcp_work, WIZ_DHCP_WORK_RETRY_TIME);
+
     return RT_EOK;
 }
 #endif /* WIZ_USING_DHCP */
