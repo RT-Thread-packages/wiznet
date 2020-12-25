@@ -34,7 +34,7 @@ void wiz_user_config_mac(char *mac_buf, rt_uint8_t buf_len);
 int wiz_init(void);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* __WIZ_H__ */
