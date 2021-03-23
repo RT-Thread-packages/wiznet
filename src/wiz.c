@@ -60,6 +60,7 @@ static rt_timer_t  dns_tick_timer;
 
 #ifdef WIZ_USING_DHCP
 static rt_timer_t  dhcp_timer;
+static struct rt_work *dhcp_work = RT_NULL;
 #endif
 extern int wiz_recv_notice_cb(int socket);
 extern int wiz_closed_notice_cb(int socket);
@@ -242,8 +243,6 @@ static int wiz_chip_cfg_init(void)
 #define    CW_INIT_SOCKETS      8
 #define    CW_INIT_TIMEOUT      (2 * RT_TICK_PER_SECOND)
 
-    rt_tick_t start_tick, now_tick;
-    uint8_t phy_status;
     uint8_t memsize[CW_INIT_MODE][CW_INIT_SOCKETS] = { 0 };
 
     /* reset WIZnet chip internal PHY, configures PHY mode. */
@@ -252,6 +251,11 @@ static int wiz_chip_cfg_init(void)
         LOG_E("WIZCHIP initialize failed.");
         return -RT_ERROR;
     }
+    
+	struct wiz_NetTimeout_t net_timeout;
+	net_timeout.retry_cnt=5;
+	net_timeout.time_100us=20000;
+    ctlnetwork(CN_SET_TIMEOUT, (void*) &net_timeout);
 
     return RT_EOK;
 }
@@ -582,6 +586,28 @@ static int wiz_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     {
         netdev_low_level_set_dhcp_status(netdev, is_enabled);
         result = RT_EOK;
+
+        if(is_enabled == RT_FALSE)
+        {
+            if(dhcp_work != RT_NULL)
+            {
+                rt_work_cancel(dhcp_work);
+            }
+            LOG_D("wiznet(w5500) dhcp status is disable.");
+        }
+        else
+        {
+#ifndef WIZ_USING_DHCP
+            LOG_W("wiznet(w5500) dhcp function haven't compiled.");
+            result = -RT_ERROR;
+#else
+            if(dhcp_work != RT_NULL)
+            {
+                rt_work_submit(dhcp_work, RT_WAITING_NO);
+                LOG_D("wiznet(w5500) dhcp status is enable.");
+            }
+#endif
+        }
     }
     else
     {
@@ -656,8 +682,9 @@ static struct netdev *wiz_netdev_add(const char *netdev_name)
 #ifdef WIZ_USING_DHCP
 static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
 {
-#define WIZ_DHCP_WORK_RETRY         1
+#define WIZ_DHCP_WORK_RETRY         3 /* DHCP will have 3 times handshake */
 #define WIZ_DHCP_WORK_RETRY_TIME    (2 * RT_TICK_PER_SECOND)
+    static int wiz_dhcp_retry_times = WIZ_DHCP_WORK_RETRY * 20;
 
     RT_ASSERT(dhcp_work_data != RT_NULL);
 
@@ -686,43 +713,54 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
         }
         case DHCP_IP_LEASED:
         {
+            int hour, min;
             DHCP_stop();
             rt_timer_stop(dhcp_timer);
             /* to update netdev information */
             wiz_netdev_info_update(netdev, RT_FALSE);
-            if (dhcp_work)
-            {
-                /* according to the DHCP leaset time, config next DHCP produce */
-                rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
-                rt_work_submit(dhcp_work, (getDHCPLeasetime() / 2) * RT_TICK_PER_SECOND);
-            }
+
+            /* reset the previous work configure */
+            rt_work_cancel(dhcp_work);
+
+            /* according to the DHCP leaset time, config next DHCP produce */
+            rt_work_submit(dhcp_work, (getDHCPLeasetime() / 2) * RT_TICK_PER_SECOND);
+            hour = getDHCPLeasetime() / 3600;
+            min = (getDHCPLeasetime() % 3600) / 60;
+            LOG_D("DHCP countdown to lease renewal [%dH: %dMin], retry time[%04d]", hour, min, dhcp_times);
+            wiz_dhcp_retry_times = dhcp_times;
             return;
         }
+        case DHCP_STOPPED:
         case DHCP_FAILED:
         {
-            dhcp_times++;
-            break;
-        }
-        case DHCP_STOPPED:
-        {
-            dhcp_times = WIZ_DHCP_WORK_RETRY;
+            dhcp_times = wiz_dhcp_retry_times;
+            LOG_E("dhcp handshake failed!");
             break;
         }
         default:
+        {
+            dhcp_times++;
+
+            /* DHCP_RUNNING status, include don't receive data */
+            rt_thread_mdelay(10);
             break;
         }
+        }
 
-        if (dhcp_times >= WIZ_DHCP_WORK_RETRY)
+        if (dhcp_times >= wiz_dhcp_retry_times)
         {
+            LOG_D("DHCP work in %d seconds, [%03d|%03d]", WIZ_DHCP_WORK_RETRY_TIME / RT_TICK_PER_SECOND, dhcp_times, wiz_dhcp_retry_times);
+
+            /* if dhcp service is too busy to manger IP, increase retry times */
+            wiz_dhcp_retry_times = wiz_dhcp_retry_times + WIZ_DHCP_WORK_RETRY;
+
             DHCP_stop();
             rt_timer_stop(dhcp_timer);
 
-            if (dhcp_work)
-            {
-                /* according to WIZ_DHCP_WORK_RETRY_TIME, config reconfig after 2 secs */
-                rt_work_init(dhcp_work, wiz_dhcp_work, (void *)netdev);
-                rt_work_submit(dhcp_work, WIZ_DHCP_WORK_RETRY_TIME);
-            }
+            rt_work_cancel(dhcp_work);
+
+            /* according to WIZ_DHCP_WORK_RETRY_TIME, reconfigure in 2 seconds */
+            rt_work_submit(dhcp_work, WIZ_DHCP_WORK_RETRY_TIME);
             break;
         }
     }
@@ -745,7 +783,7 @@ static int wiz_network_dhcp(struct netdev *netdev)
     if (dhcp_timer == RT_NULL)
         return -RT_ERROR;
 
-    struct rt_work *dhcp_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
+    dhcp_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
     if (dhcp_work == RT_NULL)
         return -RT_ENOMEM;
 
@@ -782,7 +820,10 @@ static void wiz_link_status_thread_entry(void *parameter)
             {
                 wiz_socket_init();
 #ifdef WIZ_USING_DHCP
-                wiz_dhcp_work(RT_NULL, netdev);
+                if(dhcp_work)
+                {
+                    rt_work_submit(dhcp_work, RT_WAITING_NO);
+                }
 #else
                 wiz_network_init(RT_TRUE);
 #endif
@@ -793,11 +834,15 @@ static void wiz_link_status_thread_entry(void *parameter)
             else
             {
                 netdev_low_level_set_link_status(netdev, phycfgr & WIZ_PHYCFGR_LINK_STATUS);
+                if(dhcp_work)
+                {
+                    rt_work_cancel(dhcp_work);
+                }
                 wiz_netdev_info_update(netdev, RT_TRUE);
                 LOG_I("%s netdev link status becomes link down", wiz_netdev_name);
             }
         }
-        rt_thread_mdelay(4000);
+        rt_thread_mdelay(1000);
     }
 }
 
@@ -890,7 +935,7 @@ int wiz_init(void)
     /* WIZnet socket initialize */
     wiz_socket_init();
     /* WIZnet network initialize */
-    result = wiz_network_init(0);
+    result = wiz_network_init(RT_FALSE);
     if (result != RT_EOK)
     {
         goto __exit;
