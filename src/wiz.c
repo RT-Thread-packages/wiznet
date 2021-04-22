@@ -60,8 +60,8 @@ static rt_timer_t  dns_tick_timer;
 
 #ifdef WIZ_USING_DHCP
 static rt_timer_t  dhcp_timer;
-static struct rt_work *dhcp_work = RT_NULL;
 #endif
+static struct rt_work *dhcp_work = RT_NULL;
 extern int wiz_recv_notice_cb(int socket);
 extern int wiz_closed_notice_cb(int socket);
 
@@ -251,7 +251,7 @@ static int wiz_chip_cfg_init(void)
         LOG_E("WIZCHIP initialize failed.");
         return -RT_ERROR;
     }
-    
+
 	struct wiz_NetTimeout_t net_timeout;
 	net_timeout.retry_cnt=5;
 	net_timeout.time_100us=20000;
