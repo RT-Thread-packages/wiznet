@@ -12,6 +12,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/time.h>
+#include <sys/errno.h>
 
 #include <rtthread.h>
 #ifdef SAL_USING_POSIX
