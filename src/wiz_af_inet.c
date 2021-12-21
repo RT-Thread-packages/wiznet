@@ -19,7 +19,7 @@
 #include <wiz_socket.h>
 
 #ifdef SAL_USING_POSIX
-#include <dfs_poll.h>
+#include <poll.h>
 #endif
 
 #ifdef SAL_USING_POSIX
