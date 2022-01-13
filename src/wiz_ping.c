@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2018, RT-Thread Development Team
+ * Copyright (c) 2006-2022, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -196,7 +196,7 @@ int wiz_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t 
         rt_kprintf("wiz_ping: pf or pf->skt_ops is RT_NULL.\n");
         return -RT_FALSE;
     }
-  
+
     hostent = (struct hostent *) pf->netdb_ops->gethostbyname(host);
     if (hostent == RT_NULL)
     {

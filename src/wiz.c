@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2018, RT-Thread Development Team
+ * Copyright (c) 2006-2022, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -252,9 +252,9 @@ static int wiz_chip_cfg_init(void)
         return -RT_ERROR;
     }
 
-	struct wiz_NetTimeout_t net_timeout;
-	net_timeout.retry_cnt=5;
-	net_timeout.time_100us=20000;
+    struct wiz_NetTimeout_t net_timeout;
+    net_timeout.retry_cnt=5;
+    net_timeout.time_100us=20000;
     ctlnetwork(CN_SET_TIMEOUT, (void*) &net_timeout);
 
     return RT_EOK;
