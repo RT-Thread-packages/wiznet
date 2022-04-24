@@ -829,7 +829,7 @@ static void wiz_link_status_thread_entry(void *parameter)
 #ifdef WIZ_USING_DHCP
                 if(dhcp_work)
                 {
-					DHCP_stop();
+                    DHCP_stop();
                     rt_work_submit(dhcp_work, RT_WAITING_NO);
                 }
 #else
