@@ -771,7 +771,6 @@ uint8_t DHCP_run(void)
 		break;
 
 		case STATE_DHCP_LEASED :
-		   ret = DHCP_IP_LEASED;
 			if ((dhcp_lease_time != INFINITE_LEASETIME) && ((dhcp_lease_time/2) < dhcp_tick_1s)) {
 				
 #ifdef _DHCP_DEBUG_
@@ -792,10 +791,13 @@ uint8_t DHCP_run(void)
 
 				dhcp_state = STATE_DHCP_REREQUEST;
 			}
+			else
+			{
+				ret = DHCP_IP_LEASED;
+			}
 		break;
 
 		case STATE_DHCP_REREQUEST :
-		   ret = DHCP_IP_LEASED;
 			if (type == DHCP_ACK) {
 				dhcp_retry_count = 0;
 				if (OLD_allocated_ip[0] != DHCP_allocated_ip[0] || 
@@ -1009,6 +1011,11 @@ void getDNSfromDHCP(uint8_t* ip)
 uint32_t getDHCPLeasetime(void)
 {
 	return dhcp_lease_time;
+}
+
+uint32_t getDHCPTick1s(void)
+{
+	return dhcp_tick_1s;
 }
 
 char NibbleToHex(uint8_t nibble)

@@ -691,11 +691,16 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
     struct netdev *netdev = (struct netdev *)dhcp_work_data;
 
     uint8_t dhcp_times = 0;
+    uint32_t dhcp_work_times;
     static uint8_t data_buffer[1024];
-    uint32_t dhcp_status = 0;
+    static uint32_t dhcp_status = DHCP_FAILED;
 
-    rt_timer_start(dhcp_timer);
-    DHCP_init(WIZ_DHCP_SOCKET, data_buffer);
+    if(dhcp_status == DHCP_FAILED)
+    {
+        DHCP_init(WIZ_DHCP_SOCKET, data_buffer);
+        rt_timer_start(dhcp_timer);
+    }
+	
 
     while (1)
     {
@@ -714,23 +719,24 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
         case DHCP_IP_LEASED:
         {
             int hour, min;
-            DHCP_stop();
-            rt_timer_stop(dhcp_timer);
             /* to update netdev information */
             wiz_netdev_info_update(netdev, RT_FALSE);
 
             /* reset the previous work configure */
             rt_work_cancel(dhcp_work);
-
+            dhcp_work_times = (getDHCPTick1s() > getDHCPLeasetime() / 2) ? 
+                0 : getDHCPLeasetime() / 2 - getDHCPTick1s();
             /* according to the DHCP leaset time, config next DHCP produce */
-            rt_work_submit(dhcp_work, (getDHCPLeasetime() / 2) * RT_TICK_PER_SECOND);
+            rt_work_submit(dhcp_work, (dhcp_work_times+1) * RT_TICK_PER_SECOND);
             hour = getDHCPLeasetime() / 3600;
             min = (getDHCPLeasetime() % 3600) / 60;
             LOG_D("DHCP countdown to lease renewal [%dH: %dMin], retry time[%04d]", hour, min, dhcp_times);
-            wiz_dhcp_retry_times = dhcp_times;
+            wiz_dhcp_retry_times = WIZ_DHCP_WORK_RETRY * 20;
             return;
         }
         case DHCP_STOPPED:
+            dhcp_times = wiz_dhcp_retry_times;
+            break;
         case DHCP_FAILED:
         {
             dhcp_times = wiz_dhcp_retry_times;
@@ -755,6 +761,7 @@ static void wiz_dhcp_work(struct rt_work *dhcp_work, void *dhcp_work_data)
             wiz_dhcp_retry_times = wiz_dhcp_retry_times + WIZ_DHCP_WORK_RETRY;
 
             DHCP_stop();
+            dhcp_status = DHCP_FAILED;
             rt_timer_stop(dhcp_timer);
 
             rt_work_cancel(dhcp_work);
@@ -822,6 +829,7 @@ static void wiz_link_status_thread_entry(void *parameter)
 #ifdef WIZ_USING_DHCP
                 if(dhcp_work)
                 {
+                    DHCP_stop();
                     rt_work_submit(dhcp_work, RT_WAITING_NO);
                 }
 #else
