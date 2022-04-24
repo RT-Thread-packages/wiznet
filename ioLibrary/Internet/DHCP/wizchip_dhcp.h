@@ -153,6 +153,8 @@ void getDNSfromDHCP(uint8_t* ip);
  */
 uint32_t getDHCPLeasetime(void);
 
+uint32_t getDHCPTick1s(void);
+
 #ifdef __cplusplus
 }
 #endif
