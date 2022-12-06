@@ -16,7 +16,11 @@
 #include <wiz_socket.h>
 #include <W5500/w5500.h>
 
-#include <sal.h>
+#ifdef RT_USING_SAL
+#include <sal_netdb.h>
+#include <sal_low_lvl.h>
+#endif /* RT_USING_SAL */
+
 #include <netdev.h>
 
 #define Sn_PROTO(ch)         (0x001408 + (ch<<5))
