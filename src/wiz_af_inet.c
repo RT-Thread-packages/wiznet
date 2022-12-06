@@ -11,8 +11,11 @@
 #include <rtthread.h>
 #include <rthw.h>
 
-#include <netdb.h>
-#include <sal.h>
+#ifdef RT_USING_SAL
+#include <sal_netdb.h>
+#include <sal_low_lvl.h>
+#endif /* RT_USING_SAL */
+
 #include <netdev.h>
 
 #include <wiz.h>
