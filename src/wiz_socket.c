@@ -203,7 +203,12 @@ int wiz_closed_notice_cb(int socket)
         return -1;
     }
 
-    if (wizchip_close(socket) != SOCK_OK)
+    int8_t res;
+    if(sock->type == Sn_MR_TCP)
+        res = wizchip_disconnect(socket);
+    else 
+        res = wizchip_close(socket);
+    if (res != SOCK_OK)
     {
         LOG_E("WIZnet socket(%d) close failed.", socket);
         return -1;
@@ -511,7 +516,13 @@ int wiz_closesocket(int socket)
         return -1;
     }
 
-    if (wizchip_close(socket) != SOCK_OK)
+     int8_t res;
+    if(sock->type == Sn_MR_TCP)
+        res = wizchip_disconnect(socket);
+    else 
+        res = wizchip_close(socket);
+        
+    if ( res != SOCK_OK)
     {
         LOG_E("WIZnet socket(%d) close failed.", socket);
         free_socket(sock);
