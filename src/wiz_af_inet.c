@@ -38,7 +38,7 @@ static int wiz_poll(struct dfs_fd *file, struct rt_pollreq *req)
         return -1;
     }
 
-    sock = wiz_get_socket((int)sal_sock->user_data);
+    sock = (struct wiz_socket *)sal_sock->user_data;
     if (sock != NULL)
     {
         rt_base_t level;
