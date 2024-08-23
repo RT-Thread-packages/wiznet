@@ -1392,7 +1392,7 @@ int wiz_setsockopt(int socket, int level, int optname, const void *optval, sockl
         ret = wizchip_setsockopt(socket, (sockopt_type)optname, (void *)optval);
         if (ret != SOCK_OK)
         {
-            LOG_E("WIZnet getsocketopt input level(%d) error.", level);
+            LOG_E("WIZnet wiz_setsockopt input level(%d) error.", level);
             return ret;
         }
         break;
@@ -1631,7 +1631,7 @@ int wiz_getaddrinfo(const char *nodename, const char *servname, const struct add
                 ret = DNS_run(net_info.dns, (uint8_t *)nodename, remote_ip);
                 if (ret == -1)
                 {
-                    LOG_E("WIZnet MAX_DOMAIN_NAME is too small, should be redefined it.");
+                    LOG_E("WIZnet getaddrinfo MAX_DOMAIN_NAME is too small, should be redefined it.");
                     return EAI_FAIL;
                 }
                 else if (ret < 0)
