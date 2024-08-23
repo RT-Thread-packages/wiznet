@@ -83,6 +83,11 @@ static void wiz_isr(void)
     rt_interrupt_leave();
 }
 
+static void wiz_tim_isr(void)
+{
+    rt_mb_send(wiz_rx_mb, (rt_ubase_t) wiz_device);
+}
+
 static void wiz_data_thread_entry(void *parameter)
 {
 #define IR_SOCK(ch)         (0x01 << ch)   /**< check socket interrupt */
@@ -878,10 +883,19 @@ static int wiz_interrupt_init(rt_base_t isr_pin)
         rt_thread_startup(tid);
     }
 
+#if (WIZ_IRQ_PIN != -1)
     /* initialize interrupt pin */
     rt_pin_mode(isr_pin, PIN_MODE_INPUT_PULLUP);
     rt_pin_attach_irq(isr_pin, PIN_IRQ_MODE_FALLING, (void (*)(void*)) wiz_isr, RT_NULL);
     rt_pin_irq_enable(isr_pin, PIN_IRQ_ENABLE);
+#else
+    static rt_timer_t wiz_tim;
+    /* initialize timer */
+    wiz_tim = rt_timer_create("wiz_tim", (void (*)(void*))wiz_tim_isr, RT_NULL, WIZ_TIM_IRQ_FREQ_MS, RT_TIMER_FLAG_PERIODIC);
+    if (wiz_tim != RT_NULL){
+        rt_timer_start(wiz_tim);
+    }
+#endif
 
     return 0;
 }

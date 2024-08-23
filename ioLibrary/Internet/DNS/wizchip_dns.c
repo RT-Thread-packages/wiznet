@@ -49,6 +49,7 @@
 //
 //*****************************************************************************
 
+#include <rtthread.h>
 #include <string.h>
 #include <stdlib.h>
 #include <wizchip_socket.h>

@@ -28,6 +28,10 @@ extern "C" {
 #define WIZ_RX_MBOX_NUM      10
 #endif
 
+#ifndef WIZ_TIM_IRQ_FREQ_MS
+#define WIZ_TIM_IRQ_FREQ_MS  10
+#endif
+
 /* WIZnet set chip MAC address */
 void wiz_user_config_mac(char *mac_buf, rt_uint8_t buf_len);
 /* WIZnet initialize device and network */
