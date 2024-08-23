@@ -21,6 +21,8 @@ wiznet
 │ └───Internet // WIZnet official network function realization
 │ │ └───DHCP // DHCP function implementation
 │ └───────DNS // DNS function realization
+├───ports               // Port folder
+│   └───spi_wiz_init.c  // WIZnet custom SPI initialization file
 ├───src // RT_Thread transplant source code file
 │ └───wiz_af_inet.c // WIZnet BSD Socket registered to SAL
 │ │ wiz_device.c // WIZnet device initialization
@@ -134,7 +136,30 @@ msh />wiz_ping baidu.com
 
 The normal test of the `ping` command indicates that the WIZnet device is successfully connected to the network, and then you can use the standard BSD Socket APIs abstracted by SAL (Socket Abstraction Layer) for network development (MQTT, HTTP, MbedTLS, NTP, Iperf, etc.), WIZnet software package The supported protocol cluster types are: the primary protocol cluster is **AF_WIZ**, and the secondary protocol cluster is **AF_INET** (for specific differences and usage, please refer to [SAL Programming Guide](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ).
 
-## 4. Common problems
+
+## 4. Transplant files
+
+In practical applications, we often mount multiple devices on an SPI bus, but each device requires a CS pin to enable it.
+At this point, we need to configure it before SPI initialization:
+
+- Copy the ports/spiw_iz_init. c file to the board/ports folder in the bsp working directory;
+
+- Modify the board/ports/SConscript file and add:
+
+```c
+  if GetDepend(['PKG_USING_WIZNET','WIZ_USING_SPI_ATTACH']):
+    src += Glob('ports/spi_wiz_init.c')
+```
+
+- Open the macro WIZ_SING_SPI_STTACH;
+
+- Open the board/ports/spiw_iz_init. c file, configure the SPI bus number ("spi1"), and the actual CS pin:
+
+```c
+  rt_hw_spi_device_attach("spi1", WIZ_SPI_DEVICE, GPIOB, GPIO_PIN_6);
+```
+
+## 5. Common problems
 
 - Assertion problem during SPI device initialization
 
@@ -153,12 +178,12 @@ The normal test of the `ping` command indicates that the WIZnet device is succes
 - When applying for a socket, the error is ```0x22```. Note that the development branch of wiznet is in the master version or a version greater than V1.1.0. Please pay attention to the execution order of ```wiz_socket_init()```, because the ```sal_check_netdev_internet_up``` networking detection function will actively apply for a socket to determine whether the w5500 has network capabilities, and network status changes will cause ```sal_check_netdev_internet_up``` was called, causing ```0x22``` error.
 
 
-## 5. Matters needing attention
+## 6. Matters needing attention
 
 - When obtaining the software package, you need to pay attention to the correct configuration of the SPI device name, reset pin number and interrupt pin number used;
 - After the initialization is complete, it is recommended to use the `wiz_set_mac()` function to set the device MAC address to prevent conflicts with the default MAC address;
 
-## 6. Contact & Thanks
+## 7. Contact & Thanks
 
 - Maintenance: RT-Thread development team
 - Homepage: https://github.com/RT-Thread-packages/wiznet
