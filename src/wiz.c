@@ -27,6 +27,11 @@
 #error "please config SPI device name, reset pin and irq pin in menuconfig."
 #endif
 
+#if (RT_VER_NUM >= 0x50000) && !defined(RT_USING_LEGACY)
+  #warning "Please turn on the RT_USING_LEGACY for versions v5.0.0 and above to ensure compatibility with lower versions, \
+            otherwise compilation errors will occur"
+#endif
+
 #define DBG_ENABLE
 #define DBG_SECTION_NAME               "wiz"
 #ifdef WIZ_DEBUG
