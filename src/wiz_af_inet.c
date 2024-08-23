@@ -26,7 +26,11 @@
 #endif
 
 #ifdef SAL_USING_POSIX
+  #if (RT_VER_NUM >= 0x50100)
+static int wiz_poll(struct dfs_file *file, struct rt_pollreq *req)
+  #else
 static int wiz_poll(struct dfs_fd *file, struct rt_pollreq *req)
+  #endif
 {
     int mask = 0;
     struct wiz_socket *sock;
@@ -67,22 +71,22 @@ static int wiz_poll(struct dfs_fd *file, struct rt_pollreq *req)
 
 static const struct sal_socket_ops wiz_socket_ops =
 {
-    wiz_socket,
-    wiz_closesocket,
-    wiz_bind,
-    wiz_listen,
-    wiz_connect,
-    wiz_accept,
-    wiz_sendto,
-    wiz_recvfrom,
-    wiz_getsockopt,
-    wiz_setsockopt,
-    wiz_shutdown,
-    NULL,
-    NULL,
-    NULL,
+    .socket         = wiz_socket,
+    .closesocket    = wiz_closesocket,
+    .bind           = wiz_bind,
+    .listen         = wiz_listen,
+    .connect        = wiz_connect,
+    .accept         = wiz_accept,
+    .sendto         = wiz_sendto,
+    .recvfrom       = wiz_recvfrom,
+    .getsockopt     = wiz_getsockopt,
+    .setsockopt     = wiz_setsockopt,
+    .shutdown       = wiz_shutdown,
+    .getpeername    = NULL,
+    .getsockname    = NULL,
+    .ioctlsocket    = NULL,
 #ifdef SAL_USING_POSIX
-    wiz_poll,
+    .poll           = wiz_poll,
 #endif /* SAL_USING_POSIX */
 };
 

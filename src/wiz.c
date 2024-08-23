@@ -27,6 +27,11 @@
 #error "please config SPI device name, reset pin and irq pin in menuconfig."
 #endif
 
+#if (RT_VER_NUM >= 0x50000) && !defined(RT_USING_LEGACY)
+  #warning "Please turn on the RT_USING_LEGACY for versions v5.0.0 and above to ensure compatibility with lower versions, \
+            otherwise compilation errors will occur"
+#endif
+
 #define DBG_ENABLE
 #define DBG_SECTION_NAME               "wiz"
 #ifdef WIZ_DEBUG
@@ -76,6 +81,11 @@ static void wiz_isr(void)
 
     /* leave interrupt */
     rt_interrupt_leave();
+}
+
+static void wiz_tim_isr(void)
+{
+    rt_mb_send(wiz_rx_mb, (rt_ubase_t) wiz_device);
 }
 
 static void wiz_data_thread_entry(void *parameter)
@@ -873,10 +883,19 @@ static int wiz_interrupt_init(rt_base_t isr_pin)
         rt_thread_startup(tid);
     }
 
+#if (WIZ_IRQ_PIN != -1)
     /* initialize interrupt pin */
     rt_pin_mode(isr_pin, PIN_MODE_INPUT_PULLUP);
     rt_pin_attach_irq(isr_pin, PIN_IRQ_MODE_FALLING, (void (*)(void*)) wiz_isr, RT_NULL);
     rt_pin_irq_enable(isr_pin, PIN_IRQ_ENABLE);
+#else
+    static rt_timer_t wiz_tim;
+    /* initialize timer */
+    wiz_tim = rt_timer_create("wiz_tim", (void (*)(void*))wiz_tim_isr, RT_NULL, WIZ_TIM_IRQ_FREQ_MS, RT_TIMER_FLAG_PERIODIC);
+    if (wiz_tim != RT_NULL){
+        rt_timer_start(wiz_tim);
+    }
+#endif
 
     return 0;
 }
@@ -913,6 +932,10 @@ int wiz_init(void)
 
     /* I think you can attach w5500 into spi bus at here. You can use this function to realize.*/
     /* extern rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, GPIO_TypeDef *cs_gpiox, uint16_t cs_gpio_pin); */
+  #if defined(WIZ_USING_SPI_ATTACH)
+    extern int rt_hw_spi_wiz_init(void);
+    rt_hw_spi_wiz_init();
+  #endif
 
     /* WIZnet SPI device and pin initialize */
     result = wiz_device_init(WIZ_SPI_DEVICE);

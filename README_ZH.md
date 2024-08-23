@@ -21,6 +21,8 @@ wiznet
 │   └───Internet                    // WIZnet 官方网络功能实现
 │   │	└───DHCP                    // DHCP 功能实现
 │   └───────DNS                     // DNS 功能实现
+├───ports                           // Ports 移植文件夹
+│   └───spi_wiz_init.c              // WIZnet 自定义SPI初始化文件
 ├───src                             // RT_Thread 移植源码文件
 │   └───wiz_af_inet.c               // WIZnet BSD Socket 注册到 SAL
 │   │	wiz_device.c                // WIZnet 设备初始化
@@ -137,7 +139,30 @@ msh />wiz_ping baidu.com
 
 `ping` 命令测试正常说明 WIZnet 设备网络连接成功，之后可以使用 SAL（套接字抽象层） 抽象出来的标准 BSD Socket APIs 进行网络开发（MQTT、HTTP、MbedTLS、NTP、Iperf 等），WIZnet 软件包支持的协议簇类型为：主协议簇为 **AF_WIZ**、次协议簇为 **AF_INET**（具体区别和使用方式可查看  [SAL 编程指南](https://www.rt-thread.org/document/site/submodules/rtthread-manual-doc/zh/1chapters/13-chapter_sal/) ）。
 
-## 4、常见问题
+## 4、移植文件
+
+实际应用中，我们时常在一条SPI总线上挂载多个设备，然而每个设备都需要一个CS引脚去使能。
+
+此时我们要在SPI初始化之前配置它:
+
+- ports/spi_wiz_init.c 文件拷贝到bsp工作目录的 board/ports 文件夹下;
+
+- 修改 board/ports/SConscript 文件，添加：
+
+```c
+  if GetDepend(['PKG_USING_WIZNET','WIZ_USING_SPI_ATTACH']):
+    src += Glob('ports/spi_wiz_init.c')
+```
+
+- 打开宏 WIZ_USING_SPI_ATTACH;
+
+- 打开 board/ports/spi_wiz_init.c 文件，配置SPI总线号("spi1")，还有实际的CS引脚:
+
+```c
+  rt_hw_spi_device_attach("spi1", WIZ_SPI_DEVICE, GPIOB, GPIO_PIN_6);
+```
+
+## 5、常见问题
 
 - SPI 设备初始化时断言问题
 
@@ -156,12 +181,12 @@ msh />wiz_ping baidu.com
 - 当出现申请 socket 时错误为  ```0x22``` 错误，注意 wiznet 的开发分支处于 master 版本或者大于 V1.1.0 的版本。请留意  ```wiz_socket_init()```  的执行顺序，因为 ```sal_check_netdev_internet_up``` 联网检测函数，会主动申请 socket 以判断 w5500 是否具有网络能力，而网络状态变更会导致  ```sal_check_netdev_internet_up```  被调用，造成 ```0x22``` 错误。
 
 
-## 5、注意事项
+## 6、注意事项
 
 - 获取软件包时，需要注意正确配置使用的 SPI 设备名称、复位引脚号和中断引脚号；
 - 初始化完成之后，建议使用 `wiz_set_mac()` 函数设置设备 MAC 地址，防止使用默认 MAC 地址产生冲突；
 
-## 6、联系方式 & 感谢
+## 7、联系方式 & 感谢
 
 - 维护：RT-Thread 开发团队
 - 主页：https://github.com/RT-Thread-packages/wiznet

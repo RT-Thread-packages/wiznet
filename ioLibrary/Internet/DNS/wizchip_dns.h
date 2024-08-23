@@ -60,7 +60,9 @@ extern "C" {
  * @brief Define it for Debug & Monitor DNS processing.
  * @note If defined, it dependens on <stdio.h>
  */
-//#define _DNS_DEBUG_
+#ifdef WIZ_DNS_DEBUG
+#define _DNS_DEBUG_
+#endif
 
 #define	MAX_DNS_BUF_SIZE	256		///< maximum size of DNS buffer. */
 /*
@@ -68,7 +70,11 @@ extern "C" {
  * @todo SHOULD BE defined it equal as or greater than your Domain name lenght + null character(1)
  * @note SHOULD BE careful to stack overflow because it is allocated 1.5 times as MAX_DOMAIN_NAME in stack.
  */
-#define  MAX_DOMAIN_NAME   16       // for example "www.google.com"
+#ifdef WIZ_DOMAIN_NAME_MAX_SIZE
+#define MAX_DOMAIN_NAME   WIZ_DOMAIN_NAME_MAX_SIZE
+#else
+#define MAX_DOMAIN_NAME   16       // for example "www.google.com"
+#endif
 
 #define	MAX_DNS_RETRY     2        ///< Requery Count
 #define	DNS_WAIT_TIME     3        ///< Wait response time. unit 1s.
