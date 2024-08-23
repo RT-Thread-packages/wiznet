@@ -367,20 +367,26 @@ int8_t parseDNSMSG(struct dhdr * pdhdr, uint8_t * pbuf, uint8_t * ip_from_dns)
 	for (i = 0; i < pdhdr->qdcount; i++)
 	{
 		cp = dns_question(msg, cp);
-   #ifdef _DNS_DEUBG_
-      printf("MAX_DOMAIN_NAME is too small, it should be redfine in dns.h");
+		if(!cp)
+		{
+   #ifdef _DNS_DEBUG_
+			printf("MAX_DOMAIN_NAME is too small, it should be redfine in dns.h\n");
    #endif
-		if(!cp) return -1;
+			return -1;
+		}
 	}
 
 	/* Answer section */
 	for (i = 0; i < pdhdr->ancount; i++)
 	{
 		cp = dns_answer(msg, cp, ip_from_dns);
-   #ifdef _DNS_DEUBG_
-      printf("MAX_DOMAIN_NAME is too small, it should be redfine in dns.h");
+		if(!cp)
+		{
+   #ifdef _DNS_DEBUG_
+			printf("MAX_DOMAIN_NAME is too small, it should be redfine in dns.h\n");
    #endif
-		if(!cp) return -1;
+			return -1;
+		}
 	}
 
 	/* Name server (authority) section */
