@@ -60,7 +60,9 @@ extern "C" {
  * @brief Define it for Debug & Monitor DNS processing.
  * @note If defined, it dependens on <stdio.h>
  */
-//#define _DNS_DEBUG_
+#ifdef WIZ_DNS_DEBUG
+#define _DNS_DEBUG_
+#endif
 
 #define	MAX_DNS_BUF_SIZE	256		///< maximum size of DNS buffer. */
 /*
