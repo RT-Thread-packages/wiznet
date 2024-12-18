@@ -913,18 +913,6 @@ extern "C" {
  */
 #define Sn_MR_MC                     Sn_MR_ND
 
-/* Sn_MR alternate values */
-/**
- * @brief For Berkeley Socket API
- */
-#define SOCK_STREAM                  Sn_MR_TCP
-
-/**
- * @brief For Berkeley Socket API
- */
-#define SOCK_DGRAM                   Sn_MR_UDP
-
-
 /* Sn_CR values */
 /**
  * @brief Initialize or open socket
