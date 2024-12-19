@@ -619,7 +619,11 @@ static int wiz_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
 }
 
 #ifdef RT_USING_FINSH
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+static int wiz_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp, rt_bool_t isbind)
+#else 
 static int wiz_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+#endif
 {
     RT_ASSERT(netdev);
     RT_ASSERT(host);

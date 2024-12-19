@@ -26,7 +26,12 @@
 #endif
 
 #ifdef SAL_USING_POSIX
-static int wiz_poll(struct dfs_fd *file, struct rt_pollreq *req)
+
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 0, 1))
+static int wiz_poll(struct dfs_file  *file, struct rt_pollreq *req)
+#else
+static int wiz_poll(struct dfs_fd  *file, struct rt_pollreq *req)
+#endif
 {
     int mask = 0;
     struct wiz_socket *sock;
@@ -74,6 +79,10 @@ static const struct sal_socket_ops wiz_socket_ops =
     wiz_connect,
     wiz_accept,
     wiz_sendto,
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+    NULL,
+    NULL,
+#endif
     wiz_recvfrom,
     wiz_getsockopt,
     wiz_setsockopt,
@@ -81,6 +90,9 @@ static const struct sal_socket_ops wiz_socket_ops =
     NULL,
     NULL,
     NULL,
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+    NULL,
+#endif
 #ifdef SAL_USING_POSIX
     wiz_poll,
 #endif /* SAL_USING_POSIX */
